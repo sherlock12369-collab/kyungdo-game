@@ -1,0 +1,16 @@
+{
+  "name": "cops-and-robbers",
+  "version": "1.0.0",
+  "description": "경도 (경찰과 도둑) 3D 휴대폰 게임",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

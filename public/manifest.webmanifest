@@ -1,0 +1,10 @@
+{
+  "name": "경도",
+  "short_name": "경도",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2b4cff",
+  "theme_color": "#2b4cff",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
