@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#3a8a3a">
+<link rel="icon" href="icon.svg">
+<title>블럭 크리에이티브</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #9fd4ff;
+    touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
+    font-family: system-ui, -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; color: #fff;
+  }
+  input { user-select: text; -webkit-user-select: text; touch-action: manipulation; font-family: inherit; }
+  button { font-family: inherit; cursor: pointer; }
+  canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hidden { display: none !important; }
+
+  /* ===== 메뉴 ===== */
+  #menu { position: fixed; inset: 0; z-index: 20; overflow: auto; touch-action: pan-y; display: flex; align-items: center; justify-content: center; padding: 16px;
+    background: linear-gradient(160deg, rgba(58,138,58,.88), rgba(53,84,201,.82)); }
+  .panel { width: 100%; max-width: 520px; background: rgba(0,0,0,.28); border-radius: 22px; padding: 18px 20px; margin: auto; }
+  .panel h1 { margin: 0; font-size: 32px; text-align: center; }
+  .tag { text-align: center; margin: 4px 0 12px; opacity: .9; }
+  .big-btn { display: block; width: 100%; margin-top: 10px; padding: 13px; border: none; border-radius: 14px; font-size: 19px; font-weight: 800; background: #ffd43b; color: #3a2a00; box-shadow: 0 4px 0 #c99a00; }
+  .mid-btn { margin-top: 8px; padding: 11px 12px; border: none; border-radius: 14px; font-size: 16px; font-weight: 800; color: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.25); }
+  .green { background: #2fb344; } .orange { background: #f08a24; } .gray { background: #6c757d; } .red { background: #d63a3a; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .row .mid-btn { margin-top: 0; }
+  .text-in { border: none; border-radius: 12px; padding: 10px 12px; font-size: 17px; font-weight: 700; width: 120px; color: #222; }
+  .section { margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.3); }
+  .section-title { font-weight: 800; margin-bottom: 4px; }
+  #msg { min-height: 22px; margin-top: 8px; font-weight: 700; color: #ffe066; }
+  details { margin-top: 12px; } summary { cursor: pointer; font-weight: 700; }
+  details li { margin: 3px 0; }
+  a.back { display: inline-block; margin-top: 12px; color: #fff; font-weight: 700; }
+
+  /* ===== 게임 화면 ===== */
+  #hud { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+  #hud * { pointer-events: auto; }
+  #touch { position: absolute; inset: 0; touch-action: none; }
+  #cross { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none !important; }
+  #cross::before, #cross::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 2px #000; }
+  #cross::before { left: 10px; top: 0; width: 2px; height: 22px; } #cross::after { top: 10px; left: 0; height: 2px; width: 22px; }
+  #info { position: absolute; left: 10px; top: 10px; background: rgba(0,0,0,.4); border-radius: 12px; padding: 6px 12px; font-weight: 800; font-size: 15px; pointer-events: none !important; }
+  #topRight { position: absolute; right: 10px; top: 10px; display: flex; gap: 8px; }
+  #topRight button { width: 46px; height: 46px; border: none; border-radius: 12px; background: rgba(0,0,0,.45); color: #fff; font-size: 22px; }
+  #hotbar { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); display: flex; gap: 4px; background: rgba(0,0,0,.4); padding: 4px; border-radius: 10px; }
+  .slot { width: 44px; height: 44px; border: 3px solid rgba(255,255,255,.25); border-radius: 6px; padding: 0; background: rgba(0,0,0,.25); position: relative; }
+  .slot canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+  .slot.sel { border-color: #fff; transform: scale(1.1); }
+  .slot .n { position: absolute; left: 2px; top: 0; font-size: 10px; font-weight: 800; text-shadow: 0 0 2px #000; }
+  #blockName { position: absolute; left: 50%; bottom: 66px; transform: translateX(-50%); font-weight: 800; text-shadow: 0 0 4px #000; pointer-events: none !important; transition: opacity .4s; }
+  #joyBase { position: absolute; width: 130px; height: 130px; margin: -65px 0 0 -65px; border-radius: 50%; background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.5); opacity: 0; pointer-events: none !important; }
+  #joyBase.active { opacity: 1; }
+  #joyKnob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(255,255,255,.85); }
+  #btns { position: absolute; right: 12px; bottom: 64px; display: grid; grid-template-columns: repeat(3, auto); gap: 10px; align-items: end; }
+  .act { border: none; border-radius: 50%; color: #fff; font-weight: 800; line-height: 1.1; box-shadow: 0 5px 0 rgba(0,0,0,.35); touch-action: none; padding: 0; width: 70px; height: 70px; font-size: 13px; }
+  .act .ic { font-size: 24px; }
+  .act.big { width: 86px; height: 86px; } .act.big .ic { font-size: 30px; }
+  .act.on { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.35); filter: brightness(1.15); }
+  #breakBtn { background: #d6533a; } #placeBtn { background: #2fb344; } #jumpBtn { background: #4c6ef5; }
+  #flyBtn { background: #7950f2; } #downBtn { background: #495057; } #flyBtn.flying { background: #f08a24; }
+  body.pc #btns, body.pc #joyBase { display: none; }
+
+  /* 블럭 고르는 창 */
+  #picker { position: fixed; inset: 0; z-index: 15; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 12px; touch-action: pan-y; }
+  #picker .box { background: #3b3f45; border-radius: 16px; padding: 12px; max-width: 640px; width: 100%; max-height: 90vh; overflow: auto; }
+  #picker h2 { margin: 0 0 8px; font-size: 19px; display: flex; justify-content: space-between; align-items: center; }
+  #picker h2 button { border: none; border-radius: 10px; background: #6c757d; color: #fff; font-size: 18px; padding: 6px 12px; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 8px; }
+  #grid button { background: #262a2f; border: 2px solid transparent; border-radius: 10px; color: #fff; padding: 6px 2px; font-size: 12px; font-weight: 700; }
+  #grid button:hover { border-color: #ffd43b; }
+  #grid canvas { width: 40px; height: 40px; image-rendering: pixelated; display: block; margin: 0 auto 4px; }
+  #toast { position: fixed; left: 50%; top: 64px; transform: translateX(-50%); z-index: 30; background: rgba(0,0,0,.65); padding: 8px 14px; border-radius: 12px; font-weight: 800; pointer-events: none; opacity: 0; transition: opacity .3s; }
+  @media (max-height: 500px) {
+    .act { width: 60px; height: 60px; } .act.big { width: 74px; height: 74px; }
+    .slot { width: 38px; height: 38px; }
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="menu">
+  <div class="panel">
+    <h1>🧱 블럭 크리에이티브</h1>
+    <p class="tag">블럭을 놓고 부수면서 마음대로 지어요!</p>
+    <button id="soloBtn" class="big-btn">▶ 혼자 짓기</button>
+    <div class="section">
+      <div class="section-title">👫 친구랑 같이 짓기</div>
+      <div class="row">
+        <button id="hostBtn" class="mid-btn green">🏠 방 만들기</button>
+        <input id="codeIn" class="text-in" inputmode="numeric" maxlength="4" placeholder="코드">
+        <button id="joinBtn" class="mid-btn orange">🔢 들어가기</button>
+      </div>
+      <div id="msg"></div>
+    </div>
+    <div class="section">
+      <button id="resetBtn" class="mid-btn red">🌱 새 세상 (지은 거 다 지우기)</button>
+    </div>
+    <details>
+      <summary>조작법 보기</summary>
+      <ul>
+        <li>📱 왼쪽 손가락: 걷기 · 오른쪽 손가락: 둘러보기</li>
+        <li>⛏ 부수기 · 🧱 놓기 (가운데 + 표시가 있는 곳)</li>
+        <li>🦘 점프를 빨리 두 번 = ✈️ 날기 (⬆ 올라가기, ⬇ 내려가기)</li>
+        <li>📦 모든 블럭 보기 · 👁 1인칭/3인칭</li>
+        <li>💻 컴퓨터: WASD 걷기, 마우스 둘러보기, 왼쪽 클릭 부수기, 오른쪽 클릭 놓기, 가운데 클릭 블럭 줍기</li>
+        <li>💻 1~9 / 휠 아이템칸, Space 점프(두 번=날기), Shift 내려가기, E 블럭 창, F 날기, V 시점</li>
+      </ul>
+    </details>
+    <a class="back" href="index.html">← 경도로 돌아가기</a>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="touch"></div>
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="cross"></div>
+  <div id="info"></div>
+  <div id="topRight">
+    <button id="pickBtn" title="모든 블럭">📦</button>
+    <button id="viewBtn" title="시점">👁</button>
+    <button id="quitBtn" title="나가기">✕</button>
+  </div>
+  <div id="blockName"></div>
+  <div id="btns">
+    <button id="downBtn" class="act hidden"><span class="ic">⬇</span><br>내려가기</button>
+    <button id="flyBtn" class="act"><span class="ic">✈️</span><br>날기</button>
+    <button id="jumpBtn" class="act"><span class="ic">🦘</span><br>점프</button>
+    <span></span>
+    <button id="breakBtn" class="act big"><span class="ic">⛏</span><br>부수기</button>
+    <button id="placeBtn" class="act big"><span class="ic">🧱</span><br>놓기</button>
+  </div>
+  <div id="hotbar"></div>
+</div>
+
+<div id="picker" class="hidden">
+  <div class="box">
+    <h2>📦 블럭 고르기 <button id="pickClose">✕</button></h2>
+    <div id="grid"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script type="module" src="creative/main.js"></script>
+</body>
+</html>

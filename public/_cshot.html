@@ -1,0 +1,19 @@
+<!doctype html><html><body style="margin:0"><iframe id="f" src="creative.html" style="width:900px;height:500px;border:0"></iframe>
+<pre id="log" style="position:fixed;left:0;top:500px;font-size:12px"></pre>
+<script>
+const f = document.getElementById('f'), log = (t) => document.getElementById('log').textContent += t + '\n';
+f.onload = () => {
+  f.contentWindow.addEventListener('error', (e) => log('ERR ' + e.message));
+  setTimeout(() => {
+    const w = f.contentWindow, d = f.contentDocument;
+    if (!w.__cr) { log('no __cr'); return; }
+    d.getElementById('soloBtn').click();
+    const c = w.__cr;
+    // 작은 집 짓기 테스트
+    for (let x = 50; x < 55; x++) for (let y = 4; y < 7; y++) { c.edit(x, y, 44, 7); c.edit(x, y, 40, 7); }
+    for (let z = 40; z <= 44; z++) for (let y = 4; y < 7; y++) { c.edit(50, y, z, 8); c.edit(54, y, z, 6); }
+    c.edit(47, 4, 44, 11); c.edit(47,5,44,11); c.edit(46,4,44,14);
+    setTimeout(() => log('P ' + JSON.stringify(c.P) + ' target ' + JSON.stringify(c.target)), 1500);
+  }, 1500);
+};
+</script></body></html>

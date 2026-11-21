@@ -341,6 +341,16 @@ function buildPiece(p, map) {
       roof.position.set(cx, 4.1, cz); roof.rotation.y = Math.PI / 4; g.add(roof);
       return g;
     }
+    case 'arrow': { // 바닥 화살표 (ang 방향을 가리켜요)
+      const s = new THREE.Shape();
+      s.moveTo(-0.9, -0.28); s.lineTo(0.15, -0.28); s.lineTo(0.15, -0.6); s.lineTo(0.95, 0);
+      s.lineTo(0.15, 0.6); s.lineTo(0.15, 0.28); s.lineTo(-0.9, 0.28); s.closePath();
+      const a = new THREE.Mesh(new THREE.ShapeGeometry(s), M(p.color || 0xffd43b));
+      a.rotation.x = -Math.PI / 2;
+      const g = new THREE.Group(); g.add(a);
+      g.position.set(p.x, p.y || 0.05, p.z); g.rotation.y = p.ang || 0;
+      return g;
+    }
     case 'sign': {
       const s = labelSprite(p.text, '#fff8d6', 52, p.size || 1);
       s.position.set(p.x, p.y, p.z);

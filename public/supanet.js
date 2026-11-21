@@ -7,9 +7,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { Game, MAX_PLAYERS } from './shared/sim.js';
 import { MAP_LIST } from './shared/map.js';
 
-// 패밀리그 Supabase (anon 키는 누가 봐도 괜찮은 공개 키예요)
-const SB_URL = 'https://zfxyjfyzuuduorzimnvl.supabase.co';
-const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpmeHlqZnl6dXVkdW9yemltbnZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0OTA4OTQsImV4cCI6MjA5OTA2Njg5NH0.TnlW60b-HZ5WdW6z2Ea04B5KRDFccUOhbMOijOY9wN0';
+import { SB_URL, SB_KEY } from './sbconfig.js';
 
 const P = 'kd1-';
 const WAIT_TIME = 30;     // 30초 동안 아무도 안 들어오면 AI 채우고 시작

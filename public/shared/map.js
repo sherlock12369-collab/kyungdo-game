@@ -63,6 +63,8 @@ function curtain(H, x, z, o = {}) {
   H.hide(x, z, 0.65, 'curtain', o.y || 0);
 }
 function sign(H, text, x, y, z, size = 1, o = {}) { H.put({ k: 'sign', text, x, y, z, size, lvl: o.lvl ?? null, grp: o.grp || null }); }
+// 바닥 화살표: (dx, dz) 쪽을 가리켜요
+function arrow(H, x, z, dx, dz, o = {}) { H.put({ k: 'arrow', x, z, y: (o.y || 0) + 0.05, ang: Math.atan2(-dz, dx), color: o.color, lvl: o.lvl ?? null, grp: o.grp || null }); }
 function bench(H, x1, x2, z1, z2) { H.box(x1, x2, z1, z2, 0.5, 0xa0522d); }
 
 function tunnel(H, x1, x2, z, color = 0xf76707) {
@@ -198,7 +200,20 @@ function school(H) {
   box(36.3, 36.45, -35, -25, 9.6, 0x546e7a, { y: FL });       // 난간
   box(32, 36.45, -35.15, -35, 9.6, 0x546e7a, { y: FL });
   box(32, 36.45, -25, -24.85, 1, 0x546e7a, { y: FL * 2 });
-  sign(H, '⬆ 계단', 34.3, 3, -24.3, 0.8);
+  // ----- 🪧 계단 찾아가는 길 (표지판 + 바닥 화살표) -----
+  sign(H, '🪜 계단 ⬆ (2층·3층·옥상)', 34.3, 3.4, -24.3, 1.5);
+  sign(H, '🪜 계단', 37.5, 6, -23, 1.3);
+  const IN = { lvl: 0, grp: 'school' };
+  for (const sx of [-25.8, 0, 25.8]) sign(H, '🪜 계단은 밖 오른쪽(동쪽) ➡', sx, 2.9, -25.2, 0.9, IN);
+  for (let x = -21; x <= 21; x += 3) arrow(H, x, -26, 1, 0, { ...IN, y: 0.03 });  // 1층 복도: 동쪽 문으로
+  arrow(H, 25.8, -25.6, 0, 1, { ...IN, y: 0.03 });                              // 문 밖으로
+  for (let x = -24; x <= 31; x += 3) arrow(H, x, -22.6, 1, 0);                   // 바깥: 동쪽으로
+  arrow(H, 33.3, -23.4, 0, -1);                                                  // 계단으로 꺾기
+  // 2층, 3층 안에서 계단 문 찾기
+  sign(H, '🪜 계단 문 ➡', 30, FL + 3, -34, 0.9, { lvl: 1, grp: 'school' });
+  for (let x = 21; x <= 29; x += 3) arrow(H, x, -34, 1, 0, { y: FL + 0.03, lvl: 1, grp: 'school' });
+  sign(H, '🪜 계단 문 ➡', 29, FL * 2 + 3, -25.4, 0.9, { lvl: 2, grp: 'school' });
+  for (let x = 20; x <= 29; x += 3) arrow(H, x, -26, 1, 0, { y: FL * 2 + 0.03, lvl: 2, grp: 'school' });
   m.stairs.push(
     { a: { x: 33.3, z: -26.2, lv: 0 }, b: { x: 33.3, z: -34, lv: 1 } },
     { a: { x: 35.3, z: -34, lv: 1 }, b: { x: 35.3, z: -26, lv: 2 } },
