@@ -18,9 +18,9 @@ export const CFG = {
   gunCd: 3,           // 총 쿨타임 3초
   stunTime: 2,        // 총 맞으면 2초 기절
   policeWait: 5,      // 경찰은 5초 뒤에 출발
-  // 🔫 리볼버: 가까이, 자동 조준 / 🔭 스나이퍼: 멀리, 조준경
+  // 🔫 리볼버: 가까이, 자동 조준 / 🔫AK: 걸으면서 0.5초에 1발, 100발 쏘면 10초 장전 (AK는 못 잡아요)
   revolver: { speed: 40, life: 0.4, assist: 0.45, range: 15 },
-  sniper: { speed: 90, life: 1.0, assist: 0.12, range: 70 },
+  ak: { speed: 55, life: 0.45, assist: 0.22, range: 24, fireCd: 0.5, mag: 100, reload: 10 },
 };
 
 export const NAMES = ['민준', '서연', '하준', '지우', '도윤', '서윤', '시우', '하은', '주원', '지호', '예준', '수아', '유찬', '채원', '은우', '지안',
@@ -30,8 +30,8 @@ export const EMOTES = ['👋', '😂', '😱', '🙏', '😎', '💢'];
 
 // 인원별 경찰 수 (7명은 8명이랑 같음). 10명 넘으면 3명 중 1명이 경찰
 export function policeCount(n) { return n <= 4 ? 1 : n <= 6 ? 2 : n <= 8 ? 3 : n <= 10 ? 4 : Math.round(n / 3); }
-// 스나이퍼: 경찰 4명마다 1명 (경찰 1명이면 없음)
-export function sniperCount(pc) { return pc < 2 ? 0 : Math.max(1, Math.floor(pc / 4)); }
+// AK: 경찰 4명마다 1명 (경찰 1명이면 없음)
+export function akCount(pc) { return pc < 2 ? 0 : Math.max(1, Math.floor(pc / 4)); }
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -103,7 +103,7 @@ function makeAgent(id, name, team, ctrl, hid = null, avatar = null) {
     id, name, team, ctrl, hid, avatar, gun: null,
     x: 0, y: 0, z: 0, vy: 0, yaw: 0, ms: 0, vx: 0, vz: 0, grounded: true, lv: 0,
     jailed: false, invuln: 0, stun: 0, hidden: false, isJailer: false, frozen: true,
-    sprintLeft: 0, sprintUsed: false, rescueT: 0, rescueHeld: false, swingT: 0, catchCd: 0, gunCd: 0, shootT: 0, tp: 0,
+    sprintLeft: 0, sprintUsed: false, rescueT: 0, rescueHeld: false, swingT: 0, catchCd: 0, gunCd: 0, ammo: 0, akPend: null, shootT: 0, tp: 0,
     emote: -1, emoteT: 0,
     catches: 0, rescues: 0, hits: 0,
     thinkT: Math.random() * 0.5, mode: 'wander', goal: null, target: null, seen: false, lastSeen: null, rescueTarget: null, hideT: 0,
@@ -137,11 +137,11 @@ export class Game {
     for (const a of this.police) { const p = M.randomFreePoint(M.policeSpawn); a.x = p.x; a.z = p.z; a.yaw = Math.PI / 2; }
     for (const a of this.robbers) { const p = M.randomFreePoint(M.robberSpawn); a.x = p.x; a.z = p.z; a.yaw = rand(0, Math.PI * 2); }
 
-    // 감옥 지킴이 1명 (경찰 2명 이상일 때), 스나이퍼는 경찰 4명마다 1명 (지킴이 말고), 나머지는 리볼버
+    // 감옥 지킴이 1명 (경찰 2명 이상일 때), AK는 경찰 4명마다 1명 (지킴이 말고), 나머지는 리볼버
     const cops = shuffle(this.police.slice());
     if (cops.length >= 2) cops[0].isJailer = true;
     for (const c of cops) c.gun = 'revolver';
-    for (let i = 0; i < sniperCount(cops.length); i++) cops[1 + i].gun = 'sniper';
+    for (let i = 0; i < akCount(cops.length); i++) { cops[1 + i].gun = 'ak'; cops[1 + i].ammo = CFG.ak.mag; }
 
     this.phase = 'countdown'; this.count = 3; this.timeLeft = CFG.time;
     this.t = 0; this.playT = 0; this.winner = null;
@@ -161,7 +161,7 @@ export class Game {
       a: this.agents.map((a) => [a.id, r2(a.x), r2(a.y), r2(a.z), r2(a.yaw), r2(a.ms),
         (a.jailed ? 1 : 0) | (a.invuln > 0 ? 2 : 0) | (a.stun > 0 ? 4 : 0) | (a.hidden ? 8 : 0) | (a.rescueT > 0 ? 16 : 0) |
         (a.swingT > 0 ? 32 : 0) | (a.sprintUsed ? 64 : 0) | (a.shootT > 0 ? 128 : 0) | (a.isJailer ? 256 : 0),
-        r2(a.sprintLeft), r2(a.gunCd), a.tp, r2(a.stun), a.emoteT > 0 ? a.emote : -1]),
+        r2(a.sprintLeft), r2(a.gunCd), a.tp, r2(a.stun), a.emoteT > 0 ? a.emote : -1, a.gun === 'ak' ? a.ammo : -1]),
       s: this.shots.map((s) => [s.id, r2(s.x), r2(s.y), r2(s.z)]),
     };
   }
@@ -212,6 +212,10 @@ export class Game {
       a.shootT = Math.max(0, a.shootT - dt);
       a.emoteT = Math.max(0, a.emoteT - dt);
       a.frozen = this.phase !== 'play' || (a.team === 'police' && this.playT < CFG.policeWait);
+      if (a.gun === 'ak' && a.gunCd <= 0) {
+        if (a.ammo <= 0) a.ammo = CFG.ak.mag; // 장전 끝!
+        if (a.akPend) { const aim = a.akPend; a.akPend = null; if (this.phase === 'play') this.shoot(a, aim); }
+      }
       const lv = this.M.levelOf(a.y);
       if (lv >= 0 && a.grounded) a.lv = lv;
     }
@@ -244,7 +248,7 @@ export class Game {
   }
 
   tryCatch(p) {
-    if (p.catchCd > 0 || p.jailed || p.frozen) return;
+    if (p.catchCd > 0 || p.jailed || p.frozen || p.gun === 'ak') return; // AK 경찰은 못 잡아요
     p.catchCd = 0.7; p.swingT = 0.3;
     let best = null, bd = CFG.catchRange;
     for (const r of this.robbers) {
@@ -274,13 +278,40 @@ export class Game {
     this.events.push({ e: 'sprint', who: a.id });
   }
 
-  // 🔫 총. aim = { yaw, pitch } 이면 조준경으로 쏜 방향 그대로
+  // 🔫 총. 리볼버: 앞쪽 도둑 자동 조준 / AK: aim.yaw 쪽으로 (근처 도둑한테 살짝 자동 조준)
   shoot(a, aim) {
-    if (a.gunCd > 0 || a.frozen || a.jailed || !a.gun) return;
-    a.gunCd = CFG.gunCd; a.shootT = 0.25;
-    const G = CFG[a.gun], M = this.M, sy = a.y + 1.4;
+    if (a.frozen || a.jailed || !a.gun) return;
+    const ak = a.gun === 'ak';
+    if (ak && a.ammo <= 0) return; // 장전 중
+    if (a.gunCd > 0) {
+      // AK: 조금 일찍 누른 건 기억했다가 바로 쏴요 (인터넷이 느려도 0.5초에 1발)
+      if (ak && a.gunCd <= 0.35) a.akPend = { yaw: aim && Number.isFinite(+aim.yaw) ? +aim.yaw : a.yaw };
+      return;
+    }
+    const G = CFG[a.gun] || CFG.revolver, M = this.M, sy = a.y + 1.4;
+    if (ak) {
+      a.ammo--; a.shootT = 0.7;
+      a.gunCd = a.ammo <= 0 ? CFG.ak.reload : CFG.ak.fireCd;
+      if (a.ammo <= 0) this.events.push({ e: 'reload', who: a.id });
+    } else { a.gunCd = CFG.gunCd; a.shootT = 0.25; }
     let dx, dy, dz;
-    if (aim && Number.isFinite(+aim.yaw) && Number.isFinite(+aim.pitch)) {
+    if (ak) {
+      const ay = aim && Number.isFinite(+aim.yaw) ? +aim.yaw : a.yaw;
+      let best = null, bs = 1e9;
+      for (const r of this.robbers) {
+        if (r.jailed || r.invuln > 0 || r.hidden || Math.abs(r.y - a.y) > 4) continue;
+        const ex = r.x - a.x, ez = r.z - a.z, d = Math.hypot(ex, ez);
+        if (d > G.range || d < 0.3) continue;
+        const diff = Math.abs(angleDiff(ay, Math.atan2(ex, ez)));
+        if (diff > G.assist || !M.los(a.x, a.z, r.x, r.z, Math.max(0, a.lv))) continue;
+        const s = diff * 10 + d * 0.1 + (r.stun > 0 ? 5 : 0);
+        if (s < bs) { bs = s; best = r; }
+      }
+      const yaw = best ? Math.atan2(best.x - a.x, best.z - a.z) : ay;
+      const pitch = best ? Math.atan2(best.y + 1.1 - sy, dist(a, best)) : 0;
+      dx = Math.sin(yaw) * Math.cos(pitch); dy = Math.sin(pitch); dz = Math.cos(yaw) * Math.cos(pitch);
+      a.yaw = yaw;
+    } else if (aim && Number.isFinite(+aim.yaw) && Number.isFinite(+aim.pitch)) {
       const yaw = +aim.yaw, pitch = clamp(+aim.pitch, -1.5, 1.5);
       dx = Math.sin(yaw) * Math.cos(pitch); dy = Math.sin(pitch); dz = Math.cos(yaw) * Math.cos(pitch);
       a.yaw = yaw;
@@ -515,11 +546,20 @@ export class Game {
 
   // ----- AI 경찰 -----
   chase(a, t, dt) {
-    const lead = Math.min(dist(a, t) / 10, 0.6);
-    this.goTo(a, t.x + t.vx * lead, t.z + t.vz * lead, t.lv, dt, 0.2);
+    const lead = Math.min(dist(a, t) / 10, 0.6), M = this.M;
+    const akSee = a.gun === 'ak' && t.lv === a.lv && Math.abs(t.y - a.y) < 3 && M.los(a.x, a.z, t.x, t.z, Math.max(0, a.lv));
+    if (akSee && dist(a, t) < 6) { // AK 경찰은 너무 가까이 안 가요 (거리 두고 쏘기)
+      stepBody(M, a, 0, 0, false, dt);
+      a.yaw += angleDiff(a.yaw, Math.atan2(t.x - a.x, t.z - a.z)) * Math.min(1, dt * 10);
+    } else this.goTo(a, t.x + t.vx * lead, t.z + t.vz * lead, t.lv, dt, 0.2);
     const d = dist(a, t), G = CFG[a.gun] || CFG.revolver;
+    if (a.gun === 'ak') { // AK는 못 잡으니까 다다다 쏴요 (0.5초에 1발, 기절한 도둑은 안 쏴요)
+      if (akSee && a.gunCd <= 0 && a.ammo > 0 && d < G.range - 2 && t.stun <= 0 && !t.jailed && t.invuln <= 0)
+        this.shoot(a, { yaw: Math.atan2(t.x - a.x, t.z - a.z) });
+      return;
+    }
     if (d < CFG.catchRange * 0.75 && t.invuln <= 0 && !t.jailed) this.tryCatch(a);
-    else if (a.gun && a.gunCd <= 0 && d > 4 && d < Math.min(G.range, 28) && t.stun <= 0 && Math.random() < dt * (a.gun === 'sniper' ? 0.25 : 0.15)) {
+    else if (a.gun && a.gunCd <= 0 && d > 4 && d < Math.min(G.range, 28) && t.stun <= 0 && Math.random() < dt * 0.15) {
       a.yaw = Math.atan2(t.x - a.x, t.z - a.z);
       this.shoot(a);
     }

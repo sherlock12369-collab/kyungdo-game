@@ -127,15 +127,9 @@
   #jumpBtn { background: #7950f2; }
   #emoteBar { right: calc(12px + env(safe-area-inset-right)); top: 60px; display: flex; gap: 6px; background: rgba(0,0,0,.5); padding: 6px; border-radius: 14px; z-index: 5; }
   #emoteBar button { width: 44px; height: 44px; border: none; border-radius: 10px; background: rgba(255,255,255,.85); font-size: 24px; }
-  #scope { inset: 0; pointer-events: none; background: radial-gradient(circle at center, transparent 0 34vh, rgba(0,0,0,.93) 35vh); }
-  #scope .cross { position: absolute; left: 50%; top: 50%; width: 68vh; height: 68vh; transform: translate(-50%, -50%); }
-  #scope .cross::before, #scope .cross::after { content: ""; position: absolute; background: rgba(255,40,40,.9); }
-  #scope .cross::before { left: 0; right: 0; top: 50%; height: 2px; }
-  #scope .cross::after { top: 0; bottom: 0; left: 50%; width: 2px; }
-  #scopeBtns { right: calc(18px + env(safe-area-inset-right)); bottom: 18px; display: flex; align-items: flex-end; gap: 12px; }
-  #fireBtn { background: #e03131; }
-  #unscopeBtn { background: #495057; }
-  #fireBtn:disabled { background: #6c6c6c; }
+  #akBtn { background: #e03131; }
+  #ammo { left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(0,0,0,.6); color: #fff; padding: 6px 14px; border-radius: 12px; font-size: 20px; font-weight: 900; pointer-events: none; white-space: nowrap; }
+  #ammo.low { color: #ffd43b; }
   #warn { inset: 0; pointer-events: none; box-shadow: inset 0 0 60px 20px rgba(255,0,0,.55); opacity: 0; transition: opacity .2s; }
   #centerMsg { left: 50%; top: 58px; transform: translateX(-50%); background: rgba(0,0,0,.6); color: #fff; padding: 8px 14px; border-radius: 12px; font-weight: 700; text-align: center; pointer-events: none; max-width: 80vw; }
   #toast { left: 50%; top: 30%; transform: translate(-50%, -10px); background: rgba(0,0,0,.7); color: #fff; padding: 10px 18px; border-radius: 14px; font-size: 18px; font-weight: 800; text-align: center; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; max-width: 86vw; }
@@ -203,7 +197,7 @@
       <ul>
         <li>왼쪽 엄지: 조이스틱으로 움직이기 · 오른쪽 화면 드래그: 카메라 돌리기</li>
         <li>🦘 점프로 구령대, 미끄럼틀, 차 위에 올라갈 수 있어요</li>
-        <li>👮 경찰: <b>잡기</b> (도둑 가까이) · 시작하고 5초 기다려요</li><li>🔫 리볼버: 가까운 도둑 자동 조준 · 🔭 스나이퍼(경찰 4명마다 1명): 조준경으로 보고 멀리 쏘기 (옥상 추천!) · 맞으면 2초 기절, 3초마다 1번</li><li>🏫 학교 옆 바깥 계단으로 2층, 3층, 옥상에 갈 수 있어요</li><li>😀 이모티콘 버튼으로 머리 위에 말풍선 띄우기</li>
+        <li>👮 경찰: <b>잡기</b> (도둑 가까이) · 시작하고 5초 기다려요</li><li>🔫 리볼버: 가까운 도둑 자동 조준, 3초마다 1번 · 🔫AK(경찰 4명마다 1명): 쏘기 버튼을 누르고 있으면 걸으면서 0.5초에 1발! 100발 쏘면 10초 장전 · AK 경찰은 못 잡아요 · 맞으면 2초 기절</li><li>🏫 학교 옆 바깥 계단으로 2층, 3층, 옥상에 갈 수 있어요</li><li>😀 이모티콘 버튼으로 머리 위에 말풍선 띄우기</li>
         <li>🦹 도둑: <b>풀기</b> 누르고 갇힌 친구 손 터치하면 구출 · <b>5초 달리기</b>는 한 판에 1번</li>
         <li>🌿 덤불·청소도구함·커튼·터널에 들어가면 숨어서 경찰한테 안 보여요</li>
         <li>컴퓨터: WASD 이동, 스페이스 점프, J 잡기/풀기, K 총, 시프트 달리기, Q/E 카메라</li>
@@ -273,13 +267,10 @@
     </div>
     <button id="sprintBtn" class="act big"><span class="ic">🏃</span><br>5초 달리기</button>
     <button id="catchBtn" class="act big"><span class="ic">👮</span><br>잡기</button>
+    <button id="akBtn" class="act big hidden"><span class="ic">🔫</span><br>쏘기</button>
   </div>
   <div id="emoteBar" class="hidden"></div>
-  <div id="scope" class="hidden"><div class="cross"></div></div>
-  <div id="scopeBtns" class="hidden">
-    <button id="unscopeBtn" class="act small"><span class="ic">✕</span><br>그만</button>
-    <button id="fireBtn" class="act big"><span class="ic">🎯</span><br>쏘기</button>
-  </div>
+  <div id="ammo" class="hidden"></div>
   <div id="centerMsg" class="hidden"></div>
   <div id="toast"></div>
   <div id="countdown"></div>

@@ -446,10 +446,16 @@ function makeCharacter(team, skin, faceTex, gunType) {
     const baton = mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.9, 8), M(0x111111), 0, -0.85, 0.4);
     baton.rotation.x = Math.PI / 2; armR.add(baton);
     const gun = new THREE.Group();
-    if (gunType === 'sniper') { // 🔭 긴 저격총 + 조준경
-      gun.add(mesh(new THREE.BoxGeometry(0.12, 0.14, 1.5), M(0x3b2f2f), 0, 0, 0.45));
-      gun.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.45, 8), M(0x111111), 0, 0.14, 0.35).rotateX(Math.PI / 2));
-      gun.add(mesh(new THREE.BoxGeometry(0.12, 0.25, 0.3), M(0x5d4037), 0, -0.12, -0.25));
+    if (gunType === 'ak') { // 🔫 AK: 나무 개머리판 + 검은 몸통 + 휜 탄창 + 긴 총열
+      const wood = M(0x9c5a2c), metal = M(0x2b2d31);
+      gun.add(mesh(new THREE.BoxGeometry(0.13, 0.16, 0.55), metal, 0, 0, 0.2));            // 몸통
+      gun.add(mesh(new THREE.BoxGeometry(0.12, 0.2, 0.34), wood, 0, -0.05, -0.22));       // 개머리판
+      gun.add(mesh(new THREE.BoxGeometry(0.14, 0.12, 0.3), wood, 0, -0.01, 0.6));         // 앞 손잡이
+      gun.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.45, 6), metal, 0, 0.02, 0.95).rotateX(Math.PI / 2)); // 총열
+      gun.add(mesh(new THREE.BoxGeometry(0.03, 0.08, 0.03), metal, 0, 0.09, 1.1));        // 가늠쇠
+      const mag = mesh(new THREE.BoxGeometry(0.1, 0.3, 0.12), metal, 0, -0.2, 0.32);      // 탄창 (앞으로 휘어요)
+      mag.rotation.x = 0.35; gun.add(mag);
+      gun.add(mesh(new THREE.BoxGeometry(0.09, 0.2, 0.1), wood, 0, -0.14, 0.05));         // 손잡이
     } else { // 🔫 리볼버
       gun.add(mesh(new THREE.BoxGeometry(0.14, 0.18, 0.5), M(0x868e96), 0, 0, 0.15));
       gun.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.16, 8), M(0x495057), 0, 0.02, 0.02).rotateX(Math.PI / 2));
@@ -490,7 +496,7 @@ export class AgentView {
     Object.assign(this, c);
     this.mesh = c.root;
     this.s = null; this.anim = Math.random() * 6;
-    const label = (isMe ? '나' : meta.name) + (meta.jailer ? ' 🔒' : '') + (meta.gun === 'sniper' ? ' 🔭' : '');
+    const label = (isMe ? '나' : meta.name) + (meta.jailer ? ' 🔒' : '') + (meta.gun === 'ak' ? ' 🔫AK' : '');
     this.label = labelSprite(label, isMe ? '#ffe14d' : meta.team === 'police' ? '#a5d8ff' : '#ffffff');
     this.label.position.y = 3.65;
     if (meta.team === 'police' && !isMe) { // 경찰 이름표는 벽 뒤에서도 보여요
@@ -511,7 +517,7 @@ export class AgentView {
       this.mesh.add(this.emoteSprite);
     }
   }
-  // row: [id,x,y,z,yaw,ms,flags,sprintLeft,gunCd,tp,stun]
+  // row: [id,x,y,z,yaw,ms,flags,sprintLeft,gunCd,tp,stun,emote,ammo(AK만, 아니면 -1)]
   apply(row, dt, snap) {
     const [, x, y, z, yaw, ms, flags] = row;
     if (!this.s || snap) this.s = { x, y, z, yaw, ms };
@@ -545,7 +551,6 @@ export class AgentView {
     let visible = true;
     if (hidden && !this.isMe && viewerTeam === 'police' && Math.hypot(s.x - viewer.x, s.z - viewer.z) > 2.5) visible = false;
     if (invuln && Math.floor(t * 10) % 2) visible = false;
-    if (this.isMe && viewer.scoped) visible = false;
     if (occluded) visible = false;
     this.mesh.visible = visible;
     this.label.visible = !(hidden && !this.isMe); // 숨으면 이름표도 숨어요

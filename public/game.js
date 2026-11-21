@@ -1,4 +1,4 @@
-import { CFG, Game, stepBody, policeCount, sniperCount, MAX_PLAYERS, EMOTES } from './shared/sim.js';
+import { CFG, Game, stepBody, policeCount, akCount, MAX_PLAYERS, EMOTES } from './shared/sim.js';
 import { getMap, MAP_LIST } from './shared/map.js';
 import { World, AgentView } from './render.js';
 
@@ -146,9 +146,9 @@ function startSession(sess) {
   me = {
     id: sess.myId, team: mine.team, jailer: mine.jailer, gun: mine.gun, ctrl: 'human',
     x: row[1], y: row[2], z: row[3], vy: 0, yaw: row[4], ms: 0, vx: 0, vz: 0, tp: row[9], grounded: true,
-    jailed: false, stun: 0, frozen: true, sprintLeft: 0, sprintUsed: false, gunCd: 0, hidden: false, scoped: false,
+    jailed: false, stun: 0, frozen: true, sprintLeft: 0, sprintUsed: false, gunCd: 0, ammo: -1, hidden: false,
   };
-  setScope(false);
+  input.fireHeld = false; fireT = 0;
   $('emoteBar').classList.add('hidden');
   const B = M.bounds;
   camYaw = Math.atan2(me.x - (B.x1 + B.x2) / 2, me.z - (B.z1 + B.z2) / 2);
@@ -157,10 +157,13 @@ function startSession(sess) {
 
   const badge = $('roleBadge');
   badge.className = me.team;
-  badge.textContent = (me.team === 'police' ? '👮 경찰' : '🦹 도둑') + (me.jailer ? ' · 🔒 감옥 지킴이' : '') + (me.gun === 'sniper' ? ' · 🔭 스나이퍼' : me.gun ? ' · 🔫 리볼버' : '');
+  badge.textContent = (me.team === 'police' ? '👮 경찰' : '🦹 도둑') + (me.jailer ? ' · 🔒 감옥 지킴이' : '') + (me.gun === 'ak' ? ' · 🔫 AK' : me.gun ? ' · 🔫 리볼버' : '');
   const police = me.team === 'police';
-  $('catchBtn').classList.toggle('hidden', !police);
-  $('gunBtn').classList.toggle('hidden', !police);
+  const ak = me.gun === 'ak';
+  $('catchBtn').classList.toggle('hidden', !police || ak); // AK 경찰은 못 잡아요
+  $('gunBtn').classList.toggle('hidden', !police || ak);
+  $('akBtn').classList.toggle('hidden', !ak);
+  $('ammo').classList.toggle('hidden', !ak);
   $('sprintBtn').classList.toggle('hidden', police);
   $('rescueBtn').classList.toggle('hidden', police);
   hudCache = {};
@@ -168,13 +171,13 @@ function startSession(sess) {
   $('result').classList.add('hidden');
   const jailer = sess.meta.find((a) => a.jailer);
   if (me.jailer) toast('🔒 감옥 지킴이로 뽑혔어요! (나가도 되지만 욕먹어요 ㅋㅋ)', 4000);
-  else if (me.gun === 'sniper') toast('🔭 스나이퍼예요! 옥상에 올라가서 조준경으로 쏴요!', 4000);
+  else if (me.gun === 'ak') toast('🔫 AK 경찰이에요! 걸으면서 다다다 쏴요! (AK는 못 잡아요, 맞히면 친구가 잡아요)', 4500);
   else if (police) toast(`👮 경찰이에요! 도둑을 잡아요!${jailer ? ` (감옥 지킴이: ${jailer.name})` : ''}`, 3500);
   else toast('🦹 도둑이에요! 3분 동안 도망쳐요!', 3500);
 }
 
 function endGameView() {
-  setScope(false);
+  input.fireHeld = false;
   for (const v of views.values()) v.dispose();
   views.clear();
   world.updateShots([]);
@@ -232,27 +235,23 @@ function gameFrame(dt, t) {
   if (row) {
     const f = row[6];
     me.jailed = !!(f & 1); me.hidden = !!(f & 8); me.sprintUsed = !!(f & 64);
-    me.sprintLeft = row[7]; me.gunCd = row[8]; me.stun = row[10];
+    me.sprintLeft = row[7]; me.gunCd = row[8]; me.stun = row[10]; me.ammo = row[12] ?? -1;
     if (row[9] !== me.tp) { me.tp = row[9]; me.x = row[1]; me.y = row[2]; me.z = row[3]; me.vy = 0; camSnap = true; }
   }
   me.frozen = s.ph !== 'play' || (me.team === 'police' && s.pw > 0);
-  if (me.scoped && s.ph === 'end') setScope(false);
 
-  // 내 캐릭터 움직이기 (조준경 볼 때는 못 움직여요)
+  // 내 캐릭터 움직이기
   const k = input.keys;
-  let jx = me.scoped ? 0 : input.jx, jy = me.scoped ? 0 : input.jy;
+  let jx = input.jx, jy = input.jy;
   if (k.KeyW || k.ArrowUp) jy += 1;
   if (k.KeyS || k.ArrowDown) jy -= 1;
   if (k.KeyA || k.ArrowLeft) jx -= 1;
   if (k.KeyD || k.ArrowRight) jx += 1;
-  if (me.scoped) { jx = 0; jy = 0; if (k.KeyQ) aimYaw += dt * 0.8; if (k.KeyE) aimYaw -= dt * 0.8; }
-  else {
-    if (k.KeyQ) camYaw += dt * 2.2;
-    if (k.KeyE) camYaw -= dt * 2.2;
-  }
+  if (k.KeyQ) camYaw += dt * 2.2;
+  if (k.KeyE) camYaw -= dt * 2.2;
   const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw), rx = -fz, rz = fx;
-  stepBody(M, me, rx * jx + fx * jy, rz * jx + fz * jy, input.jumpBuf > 0 && !me.scoped, dt);
-  if (me.scoped) me.yaw = aimYaw;
+  stepBody(M, me, rx * jx + fx * jy, rz * jx + fz * jy, input.jumpBuf > 0, dt);
+  akFrame(dt);
   input.jumpBuf = me.vy > 0 ? 0 : Math.max(0, input.jumpBuf - dt);
   if (input.rescueHeld !== input.rescueSent) { input.rescueSent = input.rescueHeld; session.rescue(input.rescueHeld); }
 
@@ -281,7 +280,7 @@ function gameFrame(dt, t) {
   }
   world.updateShots(snap.s);
   world.setInside(M.indoorAt(me.x, me.z), myLevel());
-  if (me.scoped) updateScopeCamera(); else updateCamera(dt);
+  updateCamera(dt);
   updateHud(dt, snap);
 }
 
@@ -297,23 +296,16 @@ function camBlocked(x, y, z, maxY = Infinity) {
   return false;
 }
 
-// 🔭 스나이퍼 조준경
-let aimYaw = 0, aimPitch = 0;
-function setScope(on) {
-  if (me) me.scoped = on;
-  $('scope').classList.toggle('hidden', !on);
-  $('scopeBtns').classList.toggle('hidden', !on);
-  $('joyBase').classList.toggle('hidden', on);
-  hudCache['actions.hidden'] = undefined;
-  if (on) { aimYaw = camYaw + Math.PI; aimPitch = -0.05; resetJoy(); }
-  world.camera.fov = on ? 20 : 60;
-  world.camera.updateProjectionMatrix();
-  if (!on) camSnap = true;
-}
-function updateScopeCamera() {
-  const cam = world.camera, ey = me.y + 1.75;
-  cam.position.set(me.x + Math.sin(aimYaw) * 0.3, ey, me.z + Math.cos(aimYaw) * 0.3);
-  cam.lookAt(cam.position.x + Math.sin(aimYaw) * Math.cos(aimPitch), ey + Math.sin(aimPitch), cam.position.z + Math.cos(aimYaw) * Math.cos(aimPitch));
+// 🔫 AK: 쏘기 버튼을 누르고 있으면 카메라가 보는 쪽으로 0.5초에 1발 (걸으면서 쏠 수 있어요)
+let fireT = 0;
+function akFrame(dt) {
+  fireT = Math.max(0, fireT - dt);
+  if (me.gun !== 'ak' || !input.fireHeld || me.frozen || me.jailed || me.stun > 0) return;
+  const yaw = camYaw + Math.PI; // 카메라가 보는 방향
+  me.yaw = yaw; // 쏘는 동안은 그쪽을 봐요 (옆으로 걸어도 돼요)
+  if (fireT > 0 || me.ammo === 0) return;
+  fireT = CFG.ak.fireCd * 0.8; // 조금 빨리 보내요: 진짜 0.5초는 방장 게임이 지켜요
+  session.act('shoot', { aim: { yaw: +yaw.toFixed(3), pitch: 0 } });
 }
 
 function updateCamera(dt) {
@@ -376,7 +368,7 @@ function updateHud(dt, s) {
   setText('centerMsg', center);
   setClass('centerMsg', 'hidden', !center);
 
-  setClass('actions', 'hidden', me.jailed || me.scoped);
+  setClass('actions', 'hidden', me.jailed);
   if (me.team === 'robber') {
     let html;
     if (me.sprintLeft > 0) html = `<span class="ic">🏃</span><br>${me.sprintLeft.toFixed(1)}초`;
@@ -386,12 +378,15 @@ function updateHud(dt, s) {
     $('sprintBtn').disabled = me.sprintUsed && me.sprintLeft <= 0;
     setClass('sprintBtn', 'running', me.sprintLeft > 0);
   } else {
-    const sn = me.gun === 'sniper';
-    setText('gunBtn', !sn && me.gunCd > 0 ? `<span class="ic">🔫</span><br>${me.gunCd.toFixed(1)}` : sn ? '<span class="ic">🔭</span><br>조준' : '<span class="ic">🔫</span><br>총', true);
-    setClass('gunBtn', 'cool', !sn && me.gunCd > 0);
-    if (me.scoped) {
-      setText('fireBtn', me.gunCd > 0 ? `<span class="ic">⏳</span><br>${me.gunCd.toFixed(1)}` : '<span class="ic">🎯</span><br>쏘기', true);
-      $('fireBtn').disabled = me.gunCd > 0 || me.frozen;
+    if (me.gun === 'ak') {
+      const reloading = me.ammo === 0, left = Math.max(0, me.ammo);
+      setText('akBtn', reloading ? `<span class="ic">⏳</span><br>장전 ${Math.ceil(me.gunCd)}초` : `<span class="ic">🔫</span><br>${left}/${CFG.ak.mag}`, true);
+      setClass('akBtn', 'cool', reloading);
+      setText('ammo', reloading ? `⏳ 장전 ${Math.ceil(me.gunCd)}초` : `🔫 ${left}/${CFG.ak.mag}`);
+      setClass('ammo', 'low', reloading || left <= 10);
+    } else {
+      setText('gunBtn', me.gunCd > 0 ? `<span class="ic">🔫</span><br>${me.gunCd.toFixed(1)}` : '<span class="ic">🔫</span><br>총', true);
+      setClass('gunBtn', 'cool', me.gunCd > 0);
     }
   }
 
@@ -436,7 +431,7 @@ function toast(text, ms = 2200) {
 }
 
 // ================= 조작 (터치 / 키보드) =================
-const input = { jx: 0, jy: 0, keys: {}, rescueHeld: false, rescueSent: false, jumpBuf: 0 };
+const input = { jx: 0, jy: 0, keys: {}, fireHeld: false, rescueHeld: false, rescueSent: false, jumpBuf: 0 };
 const touchEl = $('touch'), joyBase = $('joyBase'), joyKnob = $('joyKnob');
 const JOY_R = 55;
 let joyId = null, camId = null, joyO = { x: 0, y: 0 }, camL = { x: 0, y: 0 };
@@ -449,10 +444,6 @@ function resetJoy() {
 }
 touchEl.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  if (me && me.scoped) { // 조준경: 어디를 드래그해도 조준
-    if (camId === null) { camId = e.pointerId; camL = { x: e.clientX, y: e.clientY }; touchEl.setPointerCapture(e.pointerId); }
-    return;
-  }
   if (e.clientX < innerWidth * 0.45 && joyId === null) {
     joyId = e.pointerId; joyO = { x: e.clientX, y: e.clientY };
     joyBase.style.left = e.clientX + 'px'; joyBase.style.top = e.clientY + 'px';
@@ -469,10 +460,6 @@ touchEl.addEventListener('pointermove', (e) => {
     if (len > JOY_R) { dx *= JOY_R / len; dy *= JOY_R / len; }
     input.jx = dx / JOY_R; input.jy = -dy / JOY_R;
     joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-  } else if (e.pointerId === camId && me && me.scoped) {
-    aimYaw -= (e.clientX - camL.x) * 0.0022;
-    aimPitch = clamp(aimPitch - (e.clientY - camL.y) * 0.0022, -1.3, 1.0);
-    camL = { x: e.clientX, y: e.clientY };
   } else if (e.pointerId === camId) {
     camYaw -= (e.clientX - camL.x) * 0.006;
     camPitch = clamp(camPitch + (e.clientY - camL.y) * 0.004, 0.12, 1.1);
@@ -496,13 +483,26 @@ const inGame = () => session && me;
 bindBtn('catchBtn', () => { if (inGame()) session.act('catch'); });
 function gunPress() {
   if (!inGame() || me.team !== 'police') return;
-  if (me.gun === 'sniper') { if (me.scoped) fire(); else setScope(true); }
+  if (me.gun === 'ak') input.fireHeld = true;
   else session.act('shoot');
 }
-function fire() { if (inGame() && me.scoped) session.act('shoot', { aim: { yaw: aimYaw, pitch: aimPitch } }); }
 bindBtn('gunBtn', gunPress);
-bindBtn('fireBtn', fire);
-bindBtn('unscopeBtn', () => setScope(false));
+// AK 버튼: 누르고 있으면 다다다. 누른 채로 손가락을 옆으로 밀면 쏘는 방향도 돌려요
+const akBtn = $('akBtn');
+let akDrag = null;
+akBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  akBtn.classList.add('on'); input.fireHeld = true;
+  akDrag = { id: e.pointerId, x: e.clientX };
+  try { akBtn.setPointerCapture(e.pointerId); } catch { /* 괜찮아요 */ }
+});
+akBtn.addEventListener('pointermove', (e) => {
+  if (!akDrag || e.pointerId !== akDrag.id) return;
+  camYaw -= (e.clientX - akDrag.x) * 0.006;
+  akDrag.x = e.clientX;
+});
+const akUp = (e) => { if (!akDrag || e.pointerId !== akDrag.id) return; akDrag = null; akBtn.classList.remove('on'); input.fireHeld = false; };
+for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) akBtn.addEventListener(t, akUp);
 $('emoteBtn').addEventListener('click', () => $('emoteBar').classList.toggle('hidden'));
 EMOTES.forEach((em, i) => {
   const b = document.createElement('button');
@@ -521,15 +521,15 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Space') { e.preventDefault(); input.jumpBuf = 0.15; }
   if (e.code === 'KeyJ') { if (me.team === 'police') session.act('catch'); else input.rescueHeld = true; }
   if (e.code === 'KeyK') gunPress();
-  if (e.code === 'Escape' && me.scoped) setScope(false);
   if (e.code.startsWith('Digit')) { const i = +e.code.slice(5) - 1; if (i >= 0 && i < EMOTES.length) session.act('emote', { i }); }
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') session.act('sprint');
 });
 addEventListener('keyup', (e) => {
   input.keys[e.code] = false;
   if (e.code === 'KeyJ') input.rescueHeld = false;
+  if (e.code === 'KeyK') input.fireHeld = false;
 });
-addEventListener('blur', () => { input.keys = {}; input.rescueHeld = false; resetJoy(); camId = null; });
+addEventListener('blur', () => { input.keys = {}; input.fireHeld = false; input.rescueHeld = false; resetJoy(); camId = null; });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ================= 전체화면 =================
@@ -556,8 +556,8 @@ $('rotate').addEventListener('click', () => document.body.classList.add('rot-ok'
 function refreshLobby() {
   $('countVal').textContent = settings.players + '명';
   const p = policeCount(settings.players);
-  const sn = sniperCount(p);
-  $('teamInfo').textContent = `👮 경찰 ${p}명${sn > 1 ? ` (🔭 ${sn}명)` : ''} · 🦹 도둑 ${settings.players - p}명`;
+  const ak = akCount(p);
+  $('teamInfo').textContent = `👮 경찰 ${p}명${ak > 0 ? ` (🔫AK ${ak}명)` : ''} · 🦹 도둑 ${settings.players - p}명`;
   document.querySelectorAll('[data-map]').forEach((b) => b.classList.toggle('sel', b.dataset.map === settings.mapId));
   store.set('kd_players', settings.players); store.set('kd_map', settings.mapId);
   drawAvatarPreview();
