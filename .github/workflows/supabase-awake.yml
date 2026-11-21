@@ -1,0 +1,21 @@
+# 무료 Supabase는 1주일 안 쓰면 잠들어요 💤
+# 그래서 3일마다 "일어나 있어?" 하고 콕 찔러요 ⏰ (패밀리그 Supabase)
+name: Supabase 깨우기
+on:
+  schedule:
+    - cron: '17 3 */3 * *'   # 3일마다 (한국 시간 낮 12시쯤)
+  workflow_dispatch:
+jobs:
+  poke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 콕 찌르기
+        env:
+          SB_URL: https://zfxyjfyzuuduorzimnvl.supabase.co
+          # anon 키 = 누가 봐도 괜찮은 공개 키 (게임 코드 public/supanet.js 에도 있어요)
+          SB_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpmeHlqZnl6dXVkdW9yemltbnZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0OTA4OTQsImV4cCI6MjA5OTA2Njg5NH0.TnlW60b-HZ5WdW6z2Ea04B5KRDFccUOhbMOijOY9wN0
+        run: |
+          curl -s -o /dev/null -w "auth: %{http_code}\n" "$SB_URL/auth/v1/health" -H "apikey: $SB_KEY"
+          curl -s -o /dev/null -w "rest: %{http_code}\n" "$SB_URL/rest/v1/teams?select=*&limit=1" -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY"
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$SB_URL/auth/v1/health" -H "apikey: $SB_KEY")
+          if [ "$code" != "200" ]; then echo "Supabase가 자고 있어요! supabase.com 에서 Restore 눌러 주세요"; exit 1; fi

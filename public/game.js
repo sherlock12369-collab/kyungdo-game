@@ -47,7 +47,7 @@ class NetSession {
   pose(p, dt) {
     this.poseT -= dt;
     if (this.poseT > 0) return;
-    this.poseT = 0.05;
+    this.poseT = net.poseEvery || 0.05;
     net.send({ t: 'pose', x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2), yaw: +p.yaw.toFixed(2), ms: +p.ms.toFixed(2), vx: +p.vx.toFixed(1), vz: +p.vz.toFixed(1), tp: p.tp });
   }
   act(name, data = {}) { net.send({ t: 'act', a: name, ...data }); }
@@ -55,7 +55,8 @@ class NetSession {
   update() {}
 }
 
-const net = {
+// 친구랑 하기: 기본은 Supabase (방장 폰이 게임을 돌려요). 주소 뒤에 ?ws 붙이면 예전처럼 이 컴퓨터 서버(node server.js)를 써요
+const wsNet = {
   ws: null, queue: [],
   connect() {
     if (this.ws) return;
@@ -72,6 +73,27 @@ const net = {
     else { this.queue.push(m); this.connect(); }
   },
 };
+
+function netLost(text) {
+  if ((session && !session.local) || screen === 'room') { endGameView(); showScreen('lobby'); msg(text); }
+}
+// Supabase는 "친구랑 하기"를 처음 누를 때 불러와요 (못 불러와도 혼자 하기는 돼요)
+function lazySupaNet() {
+  let real = null, loading = null, queue = [];
+  return {
+    poseEvery: 1 / 8,
+    send(m) {
+      if (real) return real.send(m);
+      queue.push(m);
+      if (!loading) loading = import('./supanet.js').then((mod) => {
+        real = mod.createSupaNet((x) => onNet(x), netLost);
+        for (const x of queue) real.send(x);
+        queue = [];
+      }, () => { loading = null; queue = []; msg('인터넷이 안 돼서 친구랑 하기를 못 열었어요 😢'); });
+    },
+  };
+}
+const net = new URLSearchParams(location.search).has('ws') ? wsNet : lazySupaNet();
 
 function onNet(m) {
   if (m.t === 'room') {
