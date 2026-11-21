@@ -139,7 +139,7 @@ const PAINT = {
 // ----- 블럭 목록 (번호 = 블럭 id, 0은 빈칸) -----
 // pass: 'o' 보통, 'c' 구멍 뚫린 것(나뭇잎), 't' 투명(유리, 물, 얼음)
 const L = [];
-const add = (key, name, tex, o = {}) => { L.push({ key, name, tex, pass: o.pass || 'o', solid: o.solid !== false, hard: o.hard ?? 1, palette: o.palette !== false }); return L.length; };
+const add = (key, name, tex, o = {}) => { L.push({ key, name, tex, pass: o.pass || 'o', solid: o.solid !== false, hard: o.hard ?? 1, palette: o.palette !== false, flat: !!o.flat }); return L.length; };
 L.push(null);
 export const ID = {};
 const def = (key, name, tex, o) => { ID[key] = add(key, name, tex, o) - 1; };
@@ -192,6 +192,7 @@ def('cloud', '구름', 'cloud', { pass: 't', hard: 0.2 });
 def('jelly', '젤리 (통통)', 'jelly', { pass: 't', hard: 0.3 });
 def('obsidian', '흑요석', 'obsidian', { hard: 8 });
 def('crystal', '수정', 'crystal', { pass: 't', hard: 0.5 });
+def('rail', '레일 (카트 길)', 'rail', { pass: 'c', solid: false, hard: 0.2, flat: true });
 def('bedrock', '바닥돌', 'bedrock', { palette: false, hard: Infinity });
 export const BLOCKS = L;
 

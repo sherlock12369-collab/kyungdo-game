@@ -86,6 +86,18 @@
   #bpGrid button { background: #262a2f; border: 3px solid transparent; border-radius: 14px; color: #fff; padding: 10px 4px; font-size: 17px; font-weight: 800; min-height: 96px; }
   #bpGrid button .ic { display: block; font-size: 42px; line-height: 1.1; margin-bottom: 4px; }
   #bpGrid button:active, #bpGrid button:hover { border-color: #ffd43b; }
+  /* 🚗 탈것 창 (설명서랑 같은 모양) */
+  #vPanel { position: fixed; inset: 0; z-index: 15; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 12px; touch-action: pan-y; }
+  #vPanel .box { background: #3b3f45; border-radius: 16px; padding: 12px; max-width: 640px; width: 100%; max-height: 90vh; overflow: auto; }
+  #vPanel h2 { margin: 0 0 4px; font-size: 19px; display: flex; justify-content: space-between; align-items: center; }
+  #vPanel h2 button { border: none; border-radius: 10px; background: #6c757d; color: #fff; font-size: 18px; padding: 6px 12px; }
+  #vPanel .bpTip { margin: 0 0 10px; font-size: 14px; opacity: .85; }
+  #vGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+  #vGrid button { background: #262a2f; border: 3px solid transparent; border-radius: 14px; color: #fff; padding: 10px 4px; font-size: 16px; font-weight: 800; min-height: 96px; }
+  #vGrid button .ic { display: block; font-size: 42px; line-height: 1.1; margin-bottom: 4px; }
+  #vGrid button:active, #vGrid button:hover { border-color: #ffd43b; }
+  #rideBtn { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); border: none; border-radius: 30px; background: #fab005; color: #222; font-size: 20px; font-weight: 900; padding: 12px 24px; box-shadow: 0 5px 0 rgba(0,0,0,.35); touch-action: none; }
+  body.riding #flyBtn, body.riding #jumpBtn, body.riding #downBtn { visibility: hidden; }
   #toast { position: fixed; left: 50%; top: 64px; transform: translateX(-50%); z-index: 30; background: rgba(0,0,0,.65); padding: 8px 14px; border-radius: 12px; font-weight: 800; pointer-events: none; opacity: 0; transition: opacity .3s; }
   /* 📱 폰: 작은 화면 (가로든 세로든) */
   #btns { right: calc(12px + env(safe-area-inset-right)); }
@@ -140,6 +152,7 @@
         <li>⛏ 부수기 · 🧱 놓기 (가운데 + 표시가 있는 곳)</li>
         <li>🦘 점프를 빨리 두 번 = ✈️ 날기 (⬆ 올라가기, ⬇ 내려가기)</li>
         <li>📖 설명서: 집, 나무, 성 같은 걸 자동으로 지어 줘요 (💻 B)</li>
+        <li>🚗 탈것: 레일 카트, 고카트, 자동차 (💻 C 창 열기, R 타기/내리기, WASD 운전)</li>
         <li>📦 모든 블럭 보기 · 👁 1인칭/3인칭</li>
         <li>💻 컴퓨터: WASD 걷기, 마우스 둘러보기, 왼쪽 클릭 부수기, 오른쪽 클릭 놓기, 가운데 클릭 블럭 줍기</li>
         <li>💻 1~9 / 휠 아이템칸, Space 점프(두 번=날기), Shift 내려가기, E 블럭 창, F 날기, V 시점</li>
@@ -155,6 +168,7 @@
   <div id="cross"></div>
   <div id="info"></div>
   <div id="topRight">
+    <button id="vBtn" title="탈것">🚗</button>
     <button id="bpBtn" title="설명서">📖</button>
     <button id="pickBtn" title="모든 블럭">📦</button>
     <button id="viewBtn" title="시점">👁</button>
@@ -162,6 +176,7 @@
     <button id="quitBtn" title="나가기">✕</button>
   </div>
   <div id="blockName"></div>
+  <button id="rideBtn" class="hidden">🚗 타기</button>
   <div id="btns">
     <button id="downBtn" class="act hidden"><span class="ic">⬇</span><br>내려가기</button>
     <button id="flyBtn" class="act"><span class="ic">✈️</span><br>날기</button>
@@ -184,6 +199,13 @@
     <h2>📖 설명서 <button id="bpClose">✕</button></h2>
     <p class="bpTip">누르면 내 앞에 뚝딱 지어져요!</p>
     <div id="bpGrid"></div>
+  </div>
+</div>
+<div id="vPanel" class="hidden">
+  <div class="box">
+    <h2>🚗 탈것 <button id="vClose">✕</button></h2>
+    <p class="bpTip">누르면 내 앞에 나와요! 가까이 가서 타기 버튼을 눌러요. 🛒 카트는 레일 위에서만 씽씽 달려요.</p>
+    <div id="vGrid"></div>
   </div>
 </div>
 <div id="toast"></div>

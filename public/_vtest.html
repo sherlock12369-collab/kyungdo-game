@@ -1,0 +1,62 @@
+<!doctype html><html><body style="margin:0"><iframe id="f" src="creative.html" style="width:900px;height:500px;border:0"></iframe>
+<pre id="log" style="position:fixed;left:0;top:500px;font-size:12px;margin:0"></pre>
+<script>
+const f = document.getElementById('f'), log = (t) => document.getElementById('log').textContent += t + '\n';
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+f.onload = () => run().catch((e) => log("EXC " + e.message + " " + e.stack));
+async function run() {
+  const w = f.contentWindow, d = f.contentDocument;
+  w.addEventListener("unhandledrejection", (e) => log("REJ " + e.reason));
+  w.addEventListener('error', (e) => log('ERR ' + e.message));
+  await wait(1500);
+  if (!w.__cr) { log('no __cr'); return; }
+  try { w.localStorage.clear(); } catch {}
+  d.getElementById('soloBtn').click();
+  const c = w.__cr;
+  const mode = location.hash.slice(1) || 'track';
+  if (mode === 'shot' || mode === 'ride') {
+    c.setYaw(Math.PI); c.buildBlueprint(c.BLUEPRINTS.find((b) => b.key === 'track'));
+    for (let i=0;i<80 && c.vehicles.size<1;i++) await wait(100);
+    const cart=[...c.vehicles.values()][0];
+    c.P.x = 48.5; c.P.z = 47.5; c.setYaw(Math.PI/2); const k=c.spawnVehicle('kart'); c.setYaw(-Math.PI/2+0.3); c.P.x=50.5; const car=c.spawnVehicle('car');
+    c.P.x=46; c.P.z=40; c.P.y=6;
+    if (mode==='ride') { c.P.x=cart.x+1; c.P.z=cart.z; c.P.y=cart.y; c.rideToggle(); for (let i=0;i<30;i++) cart.drive(c.world,0.05,1,0); c.setPitch(-0.3); }
+    else { c.P.x=car.x+3; c.P.z=car.z+5; c.P.y=5; c.setYaw(Math.atan2(-(car.x-c.P.x), -(car.z-c.P.z))); c.setPitch(-0.4); }
+    await wait(800); log('ok ' + c.vehicles.size);
+  } else if (mode === 'unit') {
+    const k = c.spawnVehicle('kart'); log('kart ' + [k.x,k.y,k.z].map(n=>n.toFixed(2)) + ' hit ' + k.hit(c.world,k.x,k.y,k.z));
+    for (let i=0;i<40;i++) k.drive(c.world,0.05,1,0);
+    log('after ' + [k.x,k.y,k.z].map(n=>n.toFixed(2)) + ' v ' + k.v.toFixed(2) + ' ground ' + k.ground);
+    c.setYaw(Math.PI); c.buildBlueprint(c.BLUEPRINTS.find((b) => b.key === 'track'));
+    for (let i=0;i<60 && c.vehicles.size<2;i++) await wait(100);
+    const v=[...c.vehicles.values()].find(v=>v.type==='cart'); log('cart ' + (v&&[v.x,v.y,v.z].map(n=>n.toFixed(2))));
+    if (v) { const seen=new Set(); let my=0; for (let i=0;i<400;i++){ v.drive(c.world,0.05,1,0); seen.add(Math.floor(v.x)+','+Math.floor(v.z)); my=Math.max(my,v.y);} log('cart cells ' + seen.size + ' maxY ' + my.toFixed(2) + ' v ' + v.v.toFixed(1) + ' rail ' + !!v.rail); }
+  } else if (mode === 'track') {
+    c.setYaw(Math.PI); // +z 보기
+    c.buildBlueprint(c.BLUEPRINTS.find((b) => b.key === 'track'));
+    await wait(2500);
+    const v = [...c.vehicles.values()][0];
+    log('vehicles ' + c.vehicles.size + ' ' + (v && v.type) + ' at ' + (v && [v.x, v.y, v.z].map((n) => n.toFixed(2))));
+    c.P.x = v.x + 1; c.P.z = v.z; c.rideToggle();
+    log('riding ' + !!c.riding);
+    c.keys.KeyW = true;
+    const seen = new Set(); let maxY = 0;
+    for (let i = 0; i < 60; i++) { await wait(100); seen.add(Math.floor(v.x) + ',' + Math.floor(v.z)); maxY = Math.max(maxY, v.y); }
+    log('cells visited ' + seen.size + ' maxY ' + maxY.toFixed(2) + ' v ' + v.v.toFixed(1) + ' rail ' + !!v.rail);
+    c.keys.KeyW = false; c.setPitch(-0.35);
+    await wait(300);
+  } else {
+    c.setYaw(0);
+    const k = c.spawnVehicle(mode);
+    await wait(300);
+    c.P.x = k.x + 1.5; c.P.z = k.z; c.rideToggle();
+    log('riding ' + !!c.riding + ' ' + mode);
+    const x0 = k.x, z0 = k.z;
+    c.keys.KeyW = true; await wait(1500); c.keys.KeyD = true; await wait(800); c.keys.KeyD = false;
+    log('moved ' + Math.hypot(k.x - x0, k.z - z0).toFixed(1) + ' v ' + k.v.toFixed(1) + ' y ' + k.y.toFixed(2) + ' yaw ' + k.yaw.toFixed(2));
+    c.keys.KeyW = false; await wait(400);
+    if (location.search.includes('exit')) { c.rideToggle(); c.setYaw(c.P && 0); await wait(300); log('after exit riding ' + !!c.riding + ' P ' + [c.P.x, c.P.y, c.P.z].map((n) => n.toFixed(1))); }
+  }
+  log('DONE');
+}
+</script></body></html>

@@ -157,6 +157,22 @@ function cart() {
   return p.list();
 }
 
+// ---------------- 🛤️ 레일 길 (빙 도는 길 + 언덕 하나) ----------------
+function track() {
+  const p = plan();
+  const W = 5, D = 16;                                 // 반 너비, 깊이
+  const hill = (z) => (z <= 4 || z >= 12 ? 0 : z === 5 || z === 11 ? 1 : z === 6 || z === 10 ? 2 : 3); // 오른쪽 줄 높이
+  for (let x = -W; x <= W; x++) { p.put(x, 0, 0, ID.rail); p.put(x, 0, D, ID.rail); }
+  for (let z = 1; z < D; z++) {
+    p.put(-W, 0, z, ID.rail);
+    const h = hill(z);
+    for (let y = 0; y < h; y++) p.put(W, y, z, ID.planks); // 언덕 받침
+    p.put(W, h, z, ID.rail);
+  }
+  for (const z of [4, 8, 12]) p.put(-W - 1, 0, z, ID.lamp); // 옆에 등불
+  return p.list();
+}
+
 // ---------------- 🏰 성 ----------------
 function castle() {
   const p = plan();
@@ -229,6 +245,7 @@ export const BLUEPRINTS = [
   { key: 'tower', icon: '🗼', name: '탑', make: tower },
   { key: 'bridge', icon: '🌉', name: '다리', make: bridge },
   { key: 'cart', icon: '🛒', name: '카트', make: cart },
+  { key: 'track', icon: '🛤️', name: '레일 길 + 카트', make: track },
   { key: 'castle', icon: '🏰', name: '성', make: castle },
   { key: 'fountain', icon: '⛲', name: '분수', make: fountain },
 ];

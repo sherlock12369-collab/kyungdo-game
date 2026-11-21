@@ -98,6 +98,7 @@ export class VoxelWorld {
       const id = this.d[this.idx(x, y, z)];
       if (!id) continue;
       const b = BLOCKS[id];
+      if (b.flat) { this.flatQuad(buf[b.pass], b, x, y, z); continue; }
       for (const F of FACES) {
         const nx = x + F.d[0], ny = y + F.d[1], nz = z + F.d[2];
         if (ny < 0) continue;
@@ -133,6 +134,19 @@ export class VoxelWorld {
       this.scene.add(m); meshes.push(m);
     }
     this.chunks.set(key, meshes);
+  }
+
+  // 🛤️ 레일: 바닥에 붙은 얇은 그림 한 장. 옆(x)에 레일이 이어지면 옆으로 돌려요
+  flatQuad(B, b, x, y, z) {
+    const isR = (X, Z) => [0, 1, -1].some((dy) => this.get(X, y + dy, Z) === ID.rail);
+    const alongX = (isR(x - 1, z) || isR(x + 1, z)) && !(isR(x, z - 1) || isR(x, z + 1));
+    const [u0, v0, u1, v1] = tileUV(b.faces.top), h = 0.04;
+    const uv = alongX ? [[u1, v0], [u1, v1], [u0, v1], [u0, v0]] : [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+    const base = B.p.length / 3;
+    [[0, h, 1], [1, h, 1], [1, h, 0], [0, h, 0]].forEach((c, k) => {
+      B.p.push(x + c[0], y + c[1], z + c[2]); B.u.push(uv[k][0], uv[k][1]); B.c.push(1, 1, 1);
+    });
+    B.i.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 
   // 눈에서 바라보는 쪽으로 처음 닿는 블럭 찾기 (DDA)

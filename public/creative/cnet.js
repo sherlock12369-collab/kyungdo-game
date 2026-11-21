@@ -1,18 +1,19 @@
 // 👫 크리에이티브 친구랑 하기 (Supabase)
 // - 모두 채널 "kd1-c<코드>" 하나에서 이야기해요
 // - 'p' 내 위치 (1초에 8번), 'e' 블럭 바꾼 것, 'hi' 들어왔어요, 'w' 방장이 보내주는 세상
+// - 'v' 탈것 자리 (운전하는 사람이 보내요), 'vx' 탈것 치우기
 // - 방장 컴퓨터가 세상을 저장해요 💾
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm';
 import { SB_URL, SB_KEY } from '../sbconfig.js';
 
 const PART = 6000;  // 세상 보낼 때 한 번에 숫자 6000개씩
 
-export function makeRoom({ code, host, name, onPose, onEdits, onWorld, onLost, getWorld }) {
+export function makeRoom({ code, host, name, onPose, onEdits, onWorld, onLost, getWorld, onVeh = () => {}, getVehs = () => [] }) {
   const sb = createClient(SB_URL, SB_KEY, { realtime: { params: { eventsPerSecond: 40 } } });
   const myId = 'c' + Math.random().toString(36).slice(2, 10);
   const ch = sb.channel('kd1-c' + code, { config: { broadcast: { self: false } } });
   const people = new Map();   // id → { name, last, host }
-  let hostLast = performance.now(), parts = null, closed = false;
+  let hostLast = performance.now(), parts = null, closed = false, gotVs = [];
 
   const send = (m) => { if (!closed) ch.send({ type: 'broadcast', event: 'm', payload: m }); };
 
@@ -24,13 +25,17 @@ export function makeRoom({ code, host, name, onPose, onEdits, onWorld, onLost, g
       onPose(m);
     } else if (m.t === 'e') {
       onEdits(m.b);
+    } else if (m.t === 'v' || m.t === 'vx') {
+      onVeh(m);
     } else if (m.t === 'hi' && host) {
       const list = getWorld(), n = Math.max(1, Math.ceil(list.length / PART));
-      for (let i = 0; i < n; i++) send({ t: 'w', to: m.id, i, n, d: list.slice(i * PART, (i + 1) * PART) });
+      const vs = getVehs();
+      for (let i = 0; i < n; i++) send({ t: 'w', to: m.id, i, n, d: list.slice(i * PART, (i + 1) * PART), ...(i === 0 ? { vs } : {}) });
     } else if (m.t === 'w' && !host && m.to === myId) {
       if (!parts) parts = new Array(m.n);
+      if (m.vs) gotVs = m.vs;
       parts[m.i] = m.d;
-      if (parts.every((x) => x)) { onWorld(parts.flat()); parts = null; }
+      if (parts.every((x) => x)) { onWorld(parts.flat(), gotVs); parts = null; }
     } else if (m.t === 'bye') {
       people.delete(m.id);
       onPose({ t: 'gone', id: m.id });
@@ -58,7 +63,7 @@ export function makeRoom({ code, host, name, onPose, onEdits, onWorld, onLost, g
       };
       let timer;
       const prev = onWorld;
-      onWorld = (list) => { clearTimeout(timer); onWorld = prev; prev(list); res(); };
+      onWorld = (list, vs) => { clearTimeout(timer); onWorld = prev; prev(list, vs); res(); };
       ask();
     });
   }
@@ -73,6 +78,8 @@ export function makeRoom({ code, host, name, onPose, onEdits, onWorld, onLost, g
   return {
     myId, ready, join, people,
     pose(p) { send({ t: 'p', id: myId, n: name, h: host ? 1 : 0, ...p }); },
+    veh(s) { send({ t: 'v', s }); },
+    vehDel(id) { send({ t: 'vx', id }); },
     edits(b) { if (b.length) send({ t: 'e', b }); },
     leave() {
       if (closed) return;

@@ -1,0 +1,35 @@
+<!doctype html><html><body style="margin:0">
+<iframe id="a" src="creative.html" style="width:440px;height:300px;border:0"></iframe>
+<iframe id="b" src="creative.html?x=2" style="width:440px;height:300px;border:0"></iframe>
+<pre id="log" style="font-size:12px;margin:0"></pre>
+<script>
+const log = (t) => document.getElementById('log').textContent += t + '\n';
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+let loaded = 0;
+for (const id of ['a', 'b']) document.getElementById(id).onload = () => { if (++loaded === 2) run().catch((e) => log('EXC ' + e.message)); };
+async function run() {
+  const A = document.getElementById('a').contentWindow, B = document.getElementById('b').contentWindow;
+  await wait(1500);
+  A.document.getElementById('hostBtn').click();
+  let code = '';
+  for (let i = 0; i < 50 && !code; i++) { await wait(200); const m = A.document.getElementById('info').textContent.match(/방 (\d{4})/); if (m) code = m[1]; }
+  log('code ' + code);
+  A.__cr.edit(40, 4, 40, 5);
+  const k = A.__cr.spawnVehicle('kart');
+  await wait(500);
+  B.document.getElementById('codeIn').value = code; B.document.getElementById('joinBtn').click();
+  for (let i = 0; i < 50 && B.document.getElementById('hud').classList.contains('hidden'); i++) await wait(200);
+  log('joined ' + !B.document.getElementById('hud').classList.contains('hidden') + ' B vehicles ' + B.__cr.vehicles.size + ' block ' + B.__cr.world.get(40, 4, 40));
+  // A rides and drives
+  A.__cr.P.x = k.x + 1.2; A.__cr.P.z = k.z; A.__cr.rideToggle();
+  for (let i = 0; i < 20; i++) k.drive(A.__cr.world, 0.05, 1, 0);
+  await wait(1500);
+  const bk = B.__cr.vehicles.get(k.id);
+  log('A kart ' + [k.x, k.z].map((n) => n.toFixed(1)) + ' B sees ' + (bk && [bk.x, bk.z].map((n) => n.toFixed(1))) + ' rider ' + (bk && bk.rider));
+  A.__cr.rideToggle(); await wait(1000);
+  log('after exit B rider ' + (bk && bk.rider));
+  const c2 = B.__cr.spawnVehicle('car'); await wait(1500);
+  log('A sees B car ' + A.__cr.vehicles.has(c2.id));
+  log('DONE');
+}
+</script></body></html>

@@ -4,6 +4,7 @@ import { BLOCKS, ID, blockIcon } from './blocks.js';
 import { VoxelWorld, SX, SY, SZ, GROUND } from './voxel.js';
 import { AgentView } from '../render.js';
 import { BLUEPRINTS, build, dirFromYaw } from './blueprints.js';
+import { Vehicle, VTYPES, VCOLORS } from './vehicles.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -11,7 +12,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* 저장 안 되는 브라우저 */ } },
 };
-const SAVE_KEY = 'kd_cr_world_v1';
+const SAVE_KEY = 'kd_cr_world_v1', VEH_KEY = 'kd_cr_veh_v1';
 const myName = store.get('kd_name', '') || '친구' + Math.floor(10 + Math.random() * 90);
 const isPC = !matchMedia('(pointer: coarse)').matches && !location.search.includes('touch');
 if (isPC) document.body.classList.add('pc');
@@ -103,9 +104,13 @@ function saveSoon() {
   clearTimeout(saveT);
   saveT = setTimeout(saveNow, 1500);
 }
-function saveNow() { clearTimeout(saveT); saveT = null; if (!room || isHost) store.set(SAVE_KEY, JSON.stringify(world.diffList())); }
+function saveNow() {
+  clearTimeout(saveT); saveT = null;
+  if (!room || isHost) { store.set(SAVE_KEY, JSON.stringify(world.diffList())); store.set(VEH_KEY, JSON.stringify(vehList())); }
+}
 function loadSaved() {
   try { const l = JSON.parse(store.get(SAVE_KEY, '[]')); world.loadDiff(Array.isArray(l) ? l : []); } catch { world.reset(); }
+  try { loadVehs(JSON.parse(store.get(VEH_KEY, '[]'))); } catch { loadVehs([]); }
 }
 addEventListener('beforeunload', () => { if (playing) saveNow(); if (room) room.leave(); });
 addEventListener('pagehide', () => { if (playing) saveNow(); });
@@ -122,7 +127,11 @@ function edit(x, y, z, id) {
 const others = new Map();
 const hashId = (s) => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return 2 + (h % 1000); };
 function onPose(m) {
-  if (m.t === 'gone') { const o = others.get(m.id); if (o) { scene.remove(o.view.mesh); others.delete(m.id); } return; }
+  if (m.t === 'gone') {
+    const o = others.get(m.id); if (o) { scene.remove(o.view.mesh); others.delete(m.id); }
+    for (const [, v] of vehicles) if (v.rider === m.id) { v.rider = null; v.tgt = null; }
+    return;
+  }
   let o = others.get(m.id);
   if (!o) {
     const view = new AgentView(scene, { id: hashId(m.id), team: 'robber', name: m.n, avatar: null, gun: null }, false);
@@ -137,7 +146,8 @@ async function startRoom(code, host) {
   const { makeRoom } = await import('./cnet.js');
   room = makeRoom({
     code, host, name: myName, onPose, onEdits,
-    onWorld: (list) => { world.loadDiff(list); spawn(); },
+    onWorld: (list, vs) => { world.loadDiff(list); loadVehs(vs || []); spawn(); },
+    onVeh, getVehs: vehList,
     onLost: (t) => { quit(); msg(t); },
     getWorld: () => world.diffList(),
   });
@@ -188,6 +198,7 @@ $('resetBtn').addEventListener('click', () => {
 });
 function quit() {
   if (!playing) return;
+  if (riding) unride();
   saveNow(); playing = false;
   if (room) { room.leave(); room = null; }
   for (const [, o] of others) scene.remove(o.view.mesh);
@@ -220,6 +231,8 @@ addEventListener('keydown', (e) => {
     if (k === 'KeyF') setFly(!P.fly);
     if (k === 'KeyV') third = !third;
     if (k === 'KeyE') openPicker($('picker').classList.contains('hidden'));
+    if (k === 'KeyR') rideToggle();
+    if (k === 'KeyC') openVp(!vpOpen());
     if (/^Digit[1-9]$/.test(k)) select(+k.slice(5) - 1);
   }
   keys[k] = true;
@@ -381,6 +394,142 @@ function physics(dt) {
   P.ms = Math.hypot(P.vx, P.vz);
 }
 
+// ================= 🚗 탈것 =================
+const vehicles = new Map();
+let riding = null, vehSaveT = 0;
+const myRid = () => (room ? room.myId : 'me');
+const vehList = () => [...vehicles.values()].map((v) => v.state(0));
+function addVehicle(type, x, y, z, vy, send, id, color) {
+  id = id || 'v' + Math.random().toString(36).slice(2, 8);
+  if (vehicles.has(id)) return vehicles.get(id);
+  const v = new Vehicle(scene, id, type, x, y, z, vy, color ?? VCOLORS[Math.floor(Math.random() * VCOLORS.length)]);
+  vehicles.set(id, v);
+  if (send && room) room.veh(v.state(0));
+  saveSoon();
+  return v;
+}
+function delVehicle(id, send) {
+  const v = vehicles.get(id); if (!v) return;
+  if (riding === v) unride();
+  v.remove(); vehicles.delete(id);
+  if (send && room) room.vehDel(id);
+  saveSoon();
+}
+function loadVehs(list) {
+  riding = null;
+  for (const [, v] of vehicles) v.remove();
+  vehicles.clear();
+  if (Array.isArray(list)) for (const s of list) if (Array.isArray(s) && VTYPES[s[1]]) addVehicle(s[1], s[2], s[3], s[4], s[5], false, s[0], s[6]);
+}
+function onVeh(m) {
+  if (m.t === 'vx') { delVehicle(m.id, false); return; }
+  const s = m.s; if (!Array.isArray(s) || !VTYPES[s[1]]) return;
+  let v = vehicles.get(s[0]);
+  if (!v) v = addVehicle(s[1], s[2], s[3], s[4], s[5], false, s[0], s[6]);
+  if (v === riding) return;               // 내가 운전 중이면 내 게 맞아요
+  if (s[7]) { v.rider = s[7]; v.netSet(s); }
+  else { v.rider = null; v.tgt = null; Object.assign(v, { x: s[2], y: s[3], z: s[4], yaw: s[5], rail: null }); v.place(); saveSoon(); }
+}
+// 내 앞 3칸 땅 위에 탈것 꺼내기
+function spawnVehicle(type) {
+  openVp(false);
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), d = type === 'car' ? 4 : 3;
+  let x = P.x + fx * d, z = P.z + fz * d;
+  if (type === 'cart') { // 가까운 레일을 찾아서 올려요
+    let best = null;
+    for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) for (let dy = -2; dy <= 2; dy++) {
+      const X = Math.floor(x) + dx, Y = Math.floor(P.y) + dy, Z = Math.floor(z) + dz;
+      if (world.get(X, Y, Z) !== ID.rail) continue;
+      const dist = Math.hypot(X + 0.5 - x, Z + 0.5 - z) + Math.abs(dy) * 0.5;
+      if (!best || dist < best.dist) best = { X, Y, Z, dist };
+    }
+    if (best) { const v = addVehicle('cart', best.X + 0.5, best.Y + 0.04, best.Z + 0.5, yaw, true); toast('🛒 레일 위에 놓았어요! 타 보세요'); return v; }
+    toast('🛤️ 레일이 없어요! 📖 설명서 → 레일 길, 또는 레일 블럭을 깔아 주세요');
+  }
+  const cx = clamp(Math.floor(x), 1, SX - 2), cz = clamp(Math.floor(z), 1, SZ - 2);
+  let y = clamp(Math.floor(P.y) + 3, 1, SY - 2);
+  while (y > 1 && !world.solidAt(cx, y - 1, cz)) y--;
+  const v = addVehicle(type, x, y + 0.001, z, yaw, true);
+  if (type !== 'cart') toast(VTYPES[type].icon + ' ' + VTYPES[type].name + ' 나왔어요! 가까이 가서 타기');
+  return v;
+}
+function nearestVehicle(max = 3.2) {
+  let best = null, bd = max;
+  for (const [, v] of vehicles) {
+    const d = Math.hypot(v.x - P.x, v.z - P.z) + Math.max(0, Math.abs(v.y - P.y) - 1);
+    if (d < bd && (!v.rider || v.rider === myRid())) { best = v; bd = d; }
+  }
+  return best;
+}
+function ride(v) {
+  riding = v; v.rider = myRid(); v.tgt = null; v.v = 0;
+  if (P.fly) setFly(false);
+  document.body.classList.add('riding');
+  if (room) room.veh(v.state(myRid()));
+  toast(VTYPES[v.type].icon + (isPC ? ' W/S 앞뒤, A/D 핸들, R 내리기' : ' 왼쪽 손가락으로 운전해요'));
+}
+function unride() {
+  const v = riding; if (!v) return;
+  riding = null; v.rider = null; v.v = 0;
+  const p = v.exitSpot(collides);
+  Object.assign(P, { x: p.x, y: p.y, z: p.z, vx: 0, vy: 0, vz: 0 });
+  document.body.classList.remove('riding');
+  if (room) room.veh(v.state(0));
+  saveSoon();
+}
+function rideToggle() { if (riding) unride(); else { const v = nearestVehicle(); if (v) ride(v); } }
+function vehTick(dt, paused) {
+  for (const [, v] of vehicles) {
+    if (v === riding) {
+      let fw = -joy.y, st = joy.x;
+      if (!paused) {
+        if (keys.KeyW || keys.ArrowUp) fw += 1; if (keys.KeyS || keys.ArrowDown) fw -= 1;
+        if (keys.KeyD || keys.ArrowRight) st += 1; if (keys.KeyA || keys.ArrowLeft) st -= 1;
+      } else { fw = 0; st = 0; }
+      v.drive(world, dt, clamp(fw, -1, 1), clamp(st, -1, 1));
+    } else if (v.rider) v.follow(dt);
+    else v.idle(world, dt);
+  }
+  if (riding) {
+    const s = riding.seat();
+    P.x = s.x; P.y = s.y; P.z = s.z; P.ms = 0; P.vy = 0;
+    yaw = angTo(yaw, riding.yaw, Math.min(1, dt * 3)); // 카메라가 탈것 뒤로 따라가요
+    if ((vehSaveT -= dt) <= 0) { vehSaveT = 2; saveSoon(); }
+  }
+  // 타기 버튼
+  const near = riding ? null : nearestVehicle();
+  const rb = $('rideBtn');
+  rb.classList.toggle('hidden', !riding && !near);
+  if (riding) rb.textContent = '🚶 내리기' + (isPC ? ' (R)' : '');
+  else if (near) rb.textContent = VTYPES[near.type].icon + ' 타기' + (isPC ? ' (R)' : '');
+}
+function angTo(a, b, k) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * k; }
+const vpOpen = () => !$('vPanel').classList.contains('hidden');
+function openVp(on) { $('vPanel').classList.toggle('hidden', !on); if (on && document.pointerLockElement) document.exitPointerLock(); }
+for (const type of Object.keys(VTYPES)) {
+  const b = document.createElement('button');
+  b.innerHTML = '<span class="ic">' + VTYPES[type].icon + '</span>' + VTYPES[type].name;
+  b.addEventListener('click', () => spawnVehicle(type));
+  $('vGrid').appendChild(b);
+}
+{
+  const b = document.createElement('button');
+  b.innerHTML = '<span class="ic">🛤️</span>레일 블럭 받기';
+  b.addEventListener('click', () => { setHot(ID.rail); openVp(false); toast('🛤️ 레일을 손에 들었어요! 땅에 깔아 보세요'); });
+  $('vGrid').appendChild(b);
+  const c = document.createElement('button');
+  c.innerHTML = '<span class="ic">🧹</span>가까운 탈것 치우기';
+  c.addEventListener('click', () => {
+    openVp(false);
+    const v = riding || nearestVehicle(6);
+    if (v) { delVehicle(v.id, true); toast('🧹 치웠어요'); } else toast('가까이에 탈것이 없어요');
+  });
+  $('vGrid').appendChild(c);
+}
+$('vBtn').addEventListener('click', () => openVp(true));
+$('vClose').addEventListener('click', () => openVp(false));
+$('rideBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); rideToggle(); });
+
 // ================= 📖 설명서 (자동으로 짓기) =================
 const bpOpen = () => !$('bpPanel').classList.contains('hidden');
 function openBp(on) {
@@ -393,7 +542,10 @@ function buildBlueprint(bp) {
   let oy = clamp(Math.floor(P.y) + 1, 1, SY - 1);               // 그 자리 땅 높이 찾기
   while (oy > 1 && !world.solidAt(ox, oy - 1, oz)) oy--;
   toast(bp.icon + ' ' + bp.name + ' 짓는 중… 🔨');
-  return build(bp, ox, oy, oz, dir, edit, 40, () => toast(bp.icon + ' ' + bp.name + ' 완성! 🎉'));
+  return build(bp, ox, oy, oz, dir, edit, 40, () => {
+    toast(bp.icon + ' ' + bp.name + ' 완성! 🎉');
+    if (bp.key === 'track') addVehicle('cart', ox + 0.5, oy + 0.04, oz + 0.5, yaw, true); // 레일 길에는 카트도 하나 줘요
+  });
 }
 for (const bp of BLUEPRINTS) {
   const b = document.createElement('button');
@@ -412,7 +564,9 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
   world.rebuild(4);
   if (playing) {
-    if (!$('picker').classList.contains('hidden') || bpOpen()) { /* 창 열려 있으면 안 움직여요 */ } else physics(dt);
+    const paused = !$('picker').classList.contains('hidden') || bpOpen() || vpOpen(); // 창 열려 있으면 안 움직여요
+    vehTick(dt, paused);
+    if (!paused && !riding) physics(dt);
     // 꾹 누르면 계속 놓기/부수기
     if (breakHeld || placeHeld) { repT -= dt; if (repT <= 0) { repT = 0.22; if (breakHeld) doBreak(); else doPlace(); } }
     aim();
@@ -422,20 +576,22 @@ function frame(now) {
     // 카메라
     const e = eye(), d = lookDir();
     camera.rotation.set(pitch, yaw, 0);
-    if (third) {
-      const hit = world.raycast(e, d.clone().negate(), 4.5);
-      const dist = hit ? Math.max(0.3, hit.t - 0.25) : 4.5;
+    if (third || riding) {
+      const far = riding ? (riding.type === 'car' ? 6.5 : 5) : 4.5;
+      const hit = world.raycast(e, d.clone().negate(), far);
+      const dist = hit ? Math.max(0.3, hit.t - 0.25) : far;
       camera.position.copy(e).addScaledVector(d, -dist);
     } else camera.position.copy(e);
-    meView.apply([0, P.x, P.y, P.z, yaw + Math.PI, P.ms, 0], dt, true);
+    meView.apply([0, P.x, P.y, P.z, (riding ? riding.yaw : yaw) + Math.PI, riding ? 0 : P.ms, 0], dt, true);
     meView.update(dt, t, 'robber', { x: P.x, z: P.z, scoped: false });
-    meView.mesh.visible = third;
+    meView.mesh.visible = third || !!riding;
     meView.label.visible = false;
 
     for (const [, o] of others) if (o.row) { o.view.apply(o.row, dt); o.view.update(dt, t, 'robber', { x: P.x, z: P.z, scoped: false }); }
 
     if (room) {
       poseT -= dt; flushT -= dt;
+      if (poseT <= 0 && riding) room.veh(riding.state(room.myId));
       if (poseT <= 0) { poseT = 1 / 8; room.pose({ x: +P.x.toFixed(2), y: +P.y.toFixed(2), z: +P.z.toFixed(2), yaw: +(yaw + Math.PI).toFixed(2), ms: +P.ms.toFixed(1) }); }
       if (flushT <= 0) { flushT = 1 / 8; room.edits(pending); pending = []; }
       $('info').textContent = infoText + ' · 👥 ' + room.count() + '명';
@@ -448,4 +604,4 @@ requestAnimationFrame(frame);
 // 메뉴 뒤에 보이는 풍경
 loadSaved(); world.rebuild(1000);
 camera.position.set(SX / 2 - 20, GROUND + 14, SZ / 2 + 26); camera.lookAt(SX / 2, GROUND, SZ / 2);
-window.__cr = { world, P, get target() { return target; }, edit, setFly, select, buildBlueprint, BLUEPRINTS, setYaw: (v) => { yaw = v; }, setPitch: (v) => { pitch = v; } };
+window.__cr = { world, P, vehicles, spawnVehicle, rideToggle, get riding() { return riding; }, keys, get target() { return target; }, edit, setFly, select, buildBlueprint, BLUEPRINTS, setYaw: (v) => { yaw = v; }, setPitch: (v) => { pitch = v; } };
