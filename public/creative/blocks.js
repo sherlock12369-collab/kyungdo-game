@@ -104,6 +104,35 @@ const PAINT = {
     for (let y = 1; y < T; y += 4) p.rect(1, y, 14, 2, 0x8a6238);
     p.rect(3, 0, 2, T, 0xb0b4b8); p.rect(11, 0, 2, T, 0xb0b4b8);
   },
+  sandstone: (p) => { p.noise(0xe0c98a, 0.05); p.rect(0, 0, T, 2, 0xcdb576); p.rect(0, 14, T, 2, 0xcdb576); p.rect(0, 7, T, 1, 0xd6bf80); },
+  stonebrick: (p) => {
+    p.noise(0x8a8a8a, 0.08);
+    for (const y of [7, 15]) p.rect(0, y, T, 1, 0x5f5f5f);
+    p.rect(7, 0, 1, 7, 0x5f5f5f); p.rect(3, 8, 1, 7, 0x5f5f5f); p.rect(11, 8, 1, 7, 0x5f5f5f);
+  },
+  mossy: (p) => { PAINT.cobble(p); for (let i = 0; i < 40; i++) p.px(Math.floor(p.r() * T), Math.floor(p.r() * T), 0x5a8f3a, 0.8 + p.r() * 0.4); },
+  birch_side: (p) => { p.noise(0xe8e4da, 0.04); for (let i = 0; i < 9; i++) p.rect(Math.floor(p.r() * 13), Math.floor(p.r() * T), 2 + Math.floor(p.r() * 3), 1, 0x2e2e2e); },
+  birch_top: (p) => { PAINT.log_top(p); for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) if (Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5)) > 6.5) p.px(x, y, 0xe8e4da); },
+  birch_planks: (p) => { p.noise(0xd9c58e, 0.06); for (let row = 0; row < 4; row++) { p.rect(0, row * 4 + 3, T, 1, 0xb09a62); p.rect((row * 5 + 2) % T, row * 4, 1, 3, 0xbca86f); } },
+  dark_planks: (p) => { p.noise(0x5a3c22, 0.08); for (let row = 0; row < 4; row++) { p.rect(0, row * 4 + 3, T, 1, 0x3a2614); p.rect((row * 9 + 5) % T, row * 4, 1, 3, 0x432c18); } },
+  hay_side: (p) => { p.noise(0xd6b13a, 0.1); for (let x = 0; x < T; x += 2) p.rect(x, 0, 1, T, 0xbf9a2a, 1); p.rect(0, 4, T, 2, 0x8a5a2a); p.rect(0, 11, T, 2, 0x8a5a2a); },
+  hay_top: (p) => { p.noise(0xd6b13a, 0.12); for (let i = 0; i < 30; i++) p.px(Math.floor(p.r() * T), Math.floor(p.r() * T), 0xa8862a); },
+  pumpkin_side: (p) => { p.noise(0xe8892a, 0.06); for (const x of [0, 4, 8, 12]) p.rect(x, 0, 1, T, 0xc46c1a); },
+  pumpkin_face: (p) => { PAINT.pumpkin_side(p); p.rect(3, 4, 3, 3, 0x3a1e06); p.rect(10, 4, 3, 3, 0x3a1e06); p.rect(3, 10, 10, 2, 0x3a1e06); p.rect(5, 12, 2, 1, 0x3a1e06); p.rect(9, 12, 2, 1, 0x3a1e06); },
+  pumpkin_top: (p) => { p.noise(0xd67a22, 0.06); p.rect(7, 6, 2, 4, 0x5a3a12); },
+  melon_side: (p) => { p.noise(0x6fb03a, 0.06); for (const x of [1, 6, 11]) for (let y = 0; y < T; y++) p.px(x + (y % 4 < 2 ? 0 : 1), y, 0x3d7a1e); },
+  melon_top: (p) => { p.noise(0x7cbc44, 0.06); p.frame(0x3d7a1e); },
+  clay: (p) => { p.noise(0xb86a45, 0.05); },
+  asphalt: (p) => { p.noise(0x3b3d40, 0.12); p.spots(0x55585c, 25); },
+  road: (p) => { PAINT.asphalt(p); p.rect(7, 1, 2, 5, 0xf5d33b); p.rect(7, 10, 2, 5, 0xf5d33b); },
+  tile: (p) => { p.noise(0xf4f4f4, 0.02); p.rect(0, 7, T, 1, 0xc9c9c9); p.rect(7, 0, 1, T, 0xc9c9c9); p.rect(0, 15, T, 1, 0xc9c9c9); p.rect(15, 0, 1, T, 0xc9c9c9); },
+  checker: (p) => { for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) p.px(x, y, ((x >> 2) + (y >> 2)) % 2 ? 0x222222 : 0xf2f2f2); },
+  roof: (p) => { p.noise(0x3d4f6b, 0.06); for (let row = 0; row < 4; row++) { p.rect(0, row * 4 + 3, T, 1, 0x26324a); for (let x = (row % 2) * 2; x < T; x += 4) p.rect(x, row * 4, 1, 3, 0x2f3d58); } },
+  lava: (p) => { p.noise(0xff6a00, 0.15); for (let i = 0; i < 8; i++) p.rect(Math.floor(p.r() * 12), Math.floor(p.r() * T), 4, 1, 0xffd23a); p.spots(0xb02a00, 15); },
+  cloud: (p) => { p.noise(0xffffff, 0.03, 230); },
+  jelly: (p) => { p.rect(0, 0, T, T, 0x7ee05a, 1, 150); p.frame(0x4fb030); p.rect(4, 4, 8, 8, 0x5fc840, 1, 200); },
+  obsidian: (p) => { p.noise(0x1e1430, 0.15); p.spots(0x4a2f7a, 25); },
+  crystal: (p) => { p.rect(0, 0, T, T, 0xc58cff, 1, 110); p.frame(0xe4c8ff); for (let i = 2; i < 9; i++) p.px(i, 10 - i, 0xffffff, 1, 210); },
   wool: (p, c) => { p.noise(c, 0.06); for (let y = 1; y < T; y += 4) for (let x = (y % 8 === 1 ? 1 : 3); x < T; x += 4) p.px(x, y, c, 0.88); },
 };
 
@@ -142,6 +171,27 @@ const COLORS = [
   ['blue', '파랑', 0x3554c9], ['purple', '보라', 0x8a44c4], ['pink', '분홍', 0xf28cb8], ['brown', '갈색', 0x7a5232],
 ];
 for (const [k, n, c] of COLORS) def(k, n + ' 블럭', { wool: c }, { hard: 0.8 });
+// ----- 블럭 더 (바닥돌보다 앞에 넣어야 저장한 세상이 안 바뀌어요) -----
+def('sandstone', '사암', 'sandstone', { hard: 1 });
+def('stonebrick', '돌벽돌', 'stonebrick', { hard: 2 });
+def('mossy', '이끼 돌', 'mossy', { hard: 2 });
+def('birch', '자작나무', { top: 'birch_top', side: 'birch_side', bottom: 'birch_top' }, { hard: 2 });
+def('birch_planks', '밝은 판자', 'birch_planks', { hard: 2 });
+def('dark_planks', '짙은 판자', 'dark_planks', { hard: 2 });
+def('hay', '건초', { top: 'hay_top', side: 'hay_side', bottom: 'hay_top' }, { hard: 0.4 });
+def('pumpkin', '호박', { top: 'pumpkin_top', side: 'pumpkin_side', front: 'pumpkin_face', bottom: 'pumpkin_top' }, { hard: 0.8 });
+def('melon', '수박', { top: 'melon_top', side: 'melon_side', bottom: 'melon_top' }, { hard: 0.8 });
+def('clay', '점토', 'clay', { hard: 1 });
+def('asphalt', '아스팔트', 'asphalt', { hard: 1.5 });
+def('road', '도로 (노란 선)', 'road', { hard: 1.5 });
+def('tile', '하얀 타일', 'tile', { hard: 1 });
+def('checker', '체크 무늬', 'checker', { hard: 1 });
+def('roof', '기와', 'roof', { hard: 1.5 });
+def('lava', '용암', 'lava', { solid: false, hard: 0.1 });
+def('cloud', '구름', 'cloud', { pass: 't', hard: 0.2 });
+def('jelly', '젤리 (통통)', 'jelly', { pass: 't', hard: 0.3 });
+def('obsidian', '흑요석', 'obsidian', { hard: 8 });
+def('crystal', '수정', 'crystal', { pass: 't', hard: 0.5 });
 def('bedrock', '바닥돌', 'bedrock', { palette: false, hard: Infinity });
 export const BLOCKS = L;
 
@@ -155,8 +205,8 @@ function tileOf(t) {
 for (const b of L) {
   if (!b) continue;
   const t = b.tex;
-  if (typeof t === 'string' || t.wool) { const i = tileOf(t); b.faces = { top: i, side: i, bottom: i }; }
-  else b.faces = { top: tileOf(t.top), side: tileOf(t.side), bottom: tileOf(t.bottom) };
+  if (typeof t === 'string' || t.wool) { const i = tileOf(t); b.faces = { top: i, side: i, bottom: i, front: i }; }
+  else b.faces = { top: tileOf(t.top), side: tileOf(t.side), bottom: tileOf(t.bottom), front: tileOf(t.front || t.side) };
 }
 tileOf('rail');
 export const AC = 8, AR = Math.ceil(tiles.length / AC);
@@ -185,7 +235,7 @@ export const RAIL_TILE = tileIdx.get('rail');
 export function blockIcon(id, size = 40) {
   const c = document.createElement('canvas'); c.width = c.height = size;
   const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
-  const b = L[id], i = b.faces.side;
+  const b = L[id], i = b.faces.front;
   g.drawImage(atlasCanvas, (i % AC) * T, Math.floor(i / AC) * T, T, T, 0, 0, size, size);
   return c;
 }

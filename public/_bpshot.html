@@ -1,0 +1,30 @@
+<!doctype html><html><body style="margin:0"><iframe id="f" src="creative.html" style="width:900px;height:500px;border:0"></iframe>
+<pre id="log" style="position:fixed;left:0;top:500px;font-size:12px;margin:0"></pre>
+<script>
+// 📖 설명서 테스트: _bpshot.html?bp=house&yaw=0
+const q = new URLSearchParams(location.search), f = document.getElementById('f'), log = (t) => document.getElementById('log').textContent += t + '\n';
+f.onload = () => {
+  const w = f.contentWindow, d = f.contentDocument;
+  w.addEventListener('error', (e) => log('ERR ' + e.message));
+  w.addEventListener('unhandledrejection', (e) => log('REJ ' + e.reason));
+  setTimeout(() => {
+    if (!w.__cr) { log('no __cr'); return; }
+    d.getElementById('soloBtn').click();
+    const c = w.__cr, yaw = +(q.get('yaw') || 0);
+    c.world.reset();
+    c.P.x = 48.5; c.P.z = 60.5; c.P.y = 4; c.setYaw(yaw);
+    if (q.get('panel')) { d.getElementById('bpBtn').click(); return; }
+    const bp = c.BLUEPRINTS.find((b) => b.key === (q.get('bp') || 'house'));
+    const job = c.buildBlueprint(bp);
+    log(bp.key + ' total ' + job.total);
+    setTimeout(() => {
+      log('left ' + job.left);
+      c.setFly(true);
+      const back = +(q.get('back') || 6), up = +(q.get('up') || 6);
+      c.P.x -= -Math.sin(yaw) * back + Math.cos(yaw) * (+q.get('side') || 0); c.P.z -= -Math.cos(yaw) * back - Math.sin(yaw) * (+q.get('side') || 0); c.P.y += up;
+      c.setYaw(yaw + (+q.get('turn') || 0)); c.setPitch(+(q.get('pitch') || -0.35));
+      if (q.get('cx')) { c.P.x = +q.get('cx'); c.P.y = +q.get('cy'); c.P.z = +q.get('cz'); c.setYaw(+q.get('cyaw')); }
+    }, 3500);
+  }, 1500);
+};
+</script></body></html>

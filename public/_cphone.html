@@ -1,0 +1,10 @@
+<!doctype html><html><body style="margin:0;background:#333;display:flex;gap:10px;align-items:flex-start">
+<iframe id="p" src="creative.html?touch" style="width:390px;height:700px;border:0"></iframe>
+<iframe id="l" src="creative.html?touch" style="width:780px;height:360px;border:0"></iframe>
+<script>
+for (const id of ['p', 'l']) { const f = document.getElementById(id); f.onload = () => setTimeout(() => {
+  f.contentDocument.getElementById('soloBtn').click();
+  const c = f.contentWindow.__cr; c.select(4);
+  const B = f.contentWindow; 
+}, 1500); }
+</script></body></html>

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { BLOCKS, ID, blockIcon } from './blocks.js';
 import { VoxelWorld, SX, SY, SZ, GROUND } from './voxel.js';
 import { AgentView } from '../render.js';
+import { BLUEPRINTS, build, dirFromYaw } from './blueprints.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -12,7 +13,7 @@ const store = {
 };
 const SAVE_KEY = 'kd_cr_world_v1';
 const myName = store.get('kd_name', '') || '친구' + Math.floor(10 + Math.random() * 90);
-const isPC = !matchMedia('(pointer: coarse)').matches;
+const isPC = !matchMedia('(pointer: coarse)').matches && !location.search.includes('touch');
 if (isPC) document.body.classList.add('pc');
 
 // ================= 3D 화면 =================
@@ -21,7 +22,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, isPC ? 2 : 1.5));
 const scene = new THREE.Scene();
 const SKY = 0x9fd4ff;
 scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, 45, 95);
+scene.fog = new THREE.Fog(SKY, isPC ? 45 : 35, isPC ? 95 : 75);
 scene.add(new THREE.HemisphereLight(0xffffff, 0x667755, 1.6));
 const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(30, 60, 20); scene.add(sun);
 const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 200);
@@ -192,7 +193,7 @@ function quit() {
   for (const [, o] of others) scene.remove(o.view.mesh);
   others.clear();
   if (document.pointerLockElement) document.exitPointerLock();
-  $('menu').classList.remove('hidden'); $('hud').classList.add('hidden'); openPicker(false);
+  $('menu').classList.remove('hidden'); $('hud').classList.add('hidden'); openPicker(false); openBp(false);
 }
 $('quitBtn').addEventListener('click', () => { quit(); msg(''); });
 
@@ -289,6 +290,12 @@ holdBtn($('jumpBtn'), () => { jumpHeld = true; jumpTap(); }, () => { jumpHeld = 
 holdBtn($('downBtn'), () => { downHeld = true; }, () => { downHeld = false; });
 holdBtn($('flyBtn'), () => setFly(!P.fly));
 $('viewBtn').addEventListener('click', () => { third = !third; });
+// 📱 폰은 전체 화면이 훨씬 넓어요
+$('fsBtn').addEventListener('click', () => {
+  const d = document, el = d.documentElement;
+  if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+  else (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+});
 
 // ================= 블럭 놓기 / 부수기 =================
 const eye = () => new THREE.Vector3(P.x, P.y + EYE, P.z);
@@ -364,12 +371,39 @@ function physics(dt) {
     const ox = P.x + Math.sign(P.vx) * 0.35 * (hx ? 1 : 0), oz = P.z + Math.sign(P.vz) * 0.35 * (hz ? 1 : 0);
     if (!collides(ox, P.y + 1.05, oz)) P.vy = 8.6;
   }
+  const fallV = P.vy;
   const hy = moveAxis('y', P.vy * dt);
   P.ground = hy && P.vy < 0;
   if (hy) { if (P.ground && P.fly && down) setFly(false); P.vy = 0; }
+  // 젤리 위에 떨어지면 통통 튀어요
+  if (P.ground && !P.fly && fallV < -4 && world.get(Math.floor(P.x), Math.floor(P.y - 0.5), Math.floor(P.z)) === ID.jelly) { P.vy = Math.min(16, -fallV * 0.85); P.ground = false; }
   if (P.y < -10) spawn();
   P.ms = Math.hypot(P.vx, P.vz);
 }
+
+// ================= 📖 설명서 (자동으로 짓기) =================
+const bpOpen = () => !$('bpPanel').classList.contains('hidden');
+function openBp(on) {
+  $('bpPanel').classList.toggle('hidden', !on);
+  if (on && document.pointerLockElement) document.exitPointerLock();
+}
+function buildBlueprint(bp) {
+  const dir = dirFromYaw(yaw), f = [[0, 1], [1, 0], [0, -1], [-1, 0]][dir];
+  const ox = Math.floor(P.x) + f[0] * 3, oz = Math.floor(P.z) + f[1] * 3; // 내 앞 3칸
+  let oy = clamp(Math.floor(P.y) + 1, 1, SY - 1);               // 그 자리 땅 높이 찾기
+  while (oy > 1 && !world.solidAt(ox, oy - 1, oz)) oy--;
+  toast(bp.icon + ' ' + bp.name + ' 짓는 중… 🔨');
+  return build(bp, ox, oy, oz, dir, edit, 40, () => toast(bp.icon + ' ' + bp.name + ' 완성! 🎉'));
+}
+for (const bp of BLUEPRINTS) {
+  const b = document.createElement('button');
+  b.innerHTML = '<span class="ic">' + bp.icon + '</span>' + bp.name;
+  b.addEventListener('click', () => { openBp(false); buildBlueprint(bp); });
+  $('bpGrid').appendChild(b);
+}
+$('bpBtn').addEventListener('click', () => openBp(true));
+$('bpClose').addEventListener('click', () => openBp(false));
+addEventListener('keydown', (e) => { if (playing && e.code === 'KeyB' && e.target.tagName !== 'INPUT') openBp(!bpOpen()); });
 
 // ================= 그리기 =================
 let last = performance.now(), poseT = 0, flushT = 0, t = 0;
@@ -378,7 +412,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
   world.rebuild(4);
   if (playing) {
-    if (!$('picker').classList.contains('hidden')) { /* 창 열려 있으면 안 움직여요 */ } else physics(dt);
+    if (!$('picker').classList.contains('hidden') || bpOpen()) { /* 창 열려 있으면 안 움직여요 */ } else physics(dt);
     // 꾹 누르면 계속 놓기/부수기
     if (breakHeld || placeHeld) { repT -= dt; if (repT <= 0) { repT = 0.22; if (breakHeld) doBreak(); else doPlace(); } }
     aim();
@@ -414,4 +448,4 @@ requestAnimationFrame(frame);
 // 메뉴 뒤에 보이는 풍경
 loadSaved(); world.rebuild(1000);
 camera.position.set(SX / 2 - 20, GROUND + 14, SZ / 2 + 26); camera.lookAt(SX / 2, GROUND, SZ / 2);
-window.__cr = { world, P, get target() { return target; }, edit, setFly, select };
+window.__cr = { world, P, get target() { return target; }, edit, setFly, select, buildBlueprint, BLUEPRINTS, setYaw: (v) => { yaw = v; }, setPitch: (v) => { pitch = v; } };
